@@ -1,13 +1,11 @@
 import type { ScanReport } from '@opm/core';
-import { getEnvOrDefault } from '@opm/core';
+import { getEnvOrDefault, FILEVERSE_DEFAULT_URL } from '@opm/core';
 import { formatReportAsMarkdown } from './report-formatter';
-
-const DEFAULT_API_URL = 'http://localhost:8001';
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 60_000;
 
 function getApiConfig() {
-  const apiUrl = getEnvOrDefault('FILEVERSE_API_URL', DEFAULT_API_URL);
+  const apiUrl = getEnvOrDefault('FILEVERSE_API_URL', FILEVERSE_DEFAULT_URL);
   const apiKey = process.env.FILEVERSE_API_KEY;
   if (!apiKey) throw new Error('FILEVERSE_API_KEY is required (generate at ddocs.new → Settings → Developer Mode)');
   return { apiUrl, apiKey };
@@ -60,7 +58,7 @@ export async function fetchReportFromFileverse(reportURI: string): Promise<ScanR
   if (!reportURI || reportURI.startsWith('local://')) return null;
 
   const apiKey = process.env.FILEVERSE_API_KEY;
-  const apiUrl = getEnvOrDefault('FILEVERSE_API_URL', DEFAULT_API_URL);
+  const apiUrl = getEnvOrDefault('FILEVERSE_API_URL', FILEVERSE_DEFAULT_URL);
 
   const ddocId = extractDdocId(reportURI);
   if (ddocId && apiKey) {

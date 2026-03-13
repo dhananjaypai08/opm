@@ -1,12 +1,11 @@
 import { ethers } from 'ethers';
-import { OPM_REGISTRY_ABI, getEnvOrThrow, getEnvOrDefault, BASE_SEPOLIA_RPC } from '@opm/core';
+import { OPM_REGISTRY_ABI, getEnvOrThrow, getEnvOrDefault, BASE_SEPOLIA_RPC, DEFAULT_CONTRACT_ADDRESS } from '@opm/core';
 
 function getContract() {
   const rpc = getEnvOrDefault('BASE_SEPOLIA_RPC_URL', BASE_SEPOLIA_RPC);
   const provider = new ethers.JsonRpcProvider(rpc);
   const wallet = new ethers.Wallet(getEnvOrThrow('AGENT_PRIVATE_KEY'), provider);
-  const address = getEnvOrThrow('CONTRACT_ADDRESS');
-  return new ethers.Contract(address, OPM_REGISTRY_ABI, wallet);
+  return new ethers.Contract(getEnvOrDefault('CONTRACT_ADDRESS', DEFAULT_CONTRACT_ADDRESS), OPM_REGISTRY_ABI, wallet);
 }
 
 export async function submitScoreOnChain(

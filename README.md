@@ -238,22 +238,32 @@ packages/
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPM_PRIVATE_KEY` | Yes | Author's Ethereum private key for signing |
-| `AGENT_PRIVATE_KEY` | Yes | Agent wallet key for contract gas on Base Sepolia |
-| `CONTRACT_ADDRESS` | Yes | Deployed OPMRegistry contract address |
-| `OPENAI_API_KEY` | * | OpenAI API key (auto-selects gpt-4.1 variants) |
-| `OPENROUTER_API_KEY` | * | OpenRouter API key (multi-model: Claude, Gemini, DeepSeek) |
-| `CHAINPATROL_API_KEY` | Yes | ChainPatrol API key for blocklist checks |
-| `BASE_SEPOLIA_RPC_URL` | No | Base Sepolia RPC (default: https://sepolia.base.org) |
-| `ETH_MAINNET_RPC_URL` | No | Mainnet RPC for ENS (default: https://eth.llamarpc.com) |
-| `ETH_SEPOLIA_RPC_URL` | No | Sepolia RPC for ENS (default: public endpoint) |
-| `FILEVERSE_API_KEY` | Yes | Fileverse API key from ddocs.new Developer Mode |
-| `FILEVERSE_API_URL` | No | Fileverse local API URL (default: http://localhost:8001) |
-| `NPM_TOKEN` | No | npm automation token (alternative to `--token` flag) |
+**Client commands** (`opm install`, `opm audit`, `opm info`, `opm view`, `opm whois`) work with **zero configuration**. All RPCs, the contract address, and API defaults are hardcoded in `packages/core/src/constants.ts`.
 
-\* One of `OPENAI_API_KEY` or `OPENROUTER_API_KEY` is required for AI scanning.
+**Author commands** (`opm push`) require the keys below:
+
+| Variable | Scope | Description |
+|----------|-------|-------------|
+| `OPM_SIGNING_KEY` | Author | Ethereum private key for signing package checksums |
+| `AGENT_PRIVATE_KEY` | Author | Agent wallet key for on-chain score submission gas |
+| `NPM_TOKEN` | Author | npm automation token (alternative to `--token` flag) |
+| `OPENAI_API_KEY` | Author | OpenAI API key — selects gpt-4.1 / mini / nano |
+| `OPENROUTER_API_KEY` | Author | OpenRouter key — enables Claude, Gemini, DeepSeek |
+| `FILEVERSE_API_KEY` | Author | Fileverse API key from ddocs.new Developer Mode |
+
+One of `OPENAI_API_KEY` or `OPENROUTER_API_KEY` is required for AI scanning during `opm push`.
+
+**Optional overrides** (defaults baked into `constants.ts`):
+
+| Variable | Default |
+|----------|---------|
+| `CONTRACT_ADDRESS` | `0x8A6a9a8c7e03F826915bf9f6dA036A0C1A9D1E85` |
+| `BASE_SEPOLIA_RPC_URL` | `https://sepolia.base.org` |
+| `ETH_MAINNET_RPC_URL` | `https://eth.llamarpc.com` |
+| `ETH_SEPOLIA_RPC_URL` | `https://ethereum-sepolia-rpc.publicnode.com` |
+| `FILEVERSE_API_URL` | `http://localhost:8001` |
+| `CHAINPATROL_API_KEY` | — (optional, for blocklist checks) |
+| `ARTIFICIAL_ANALYSIS_API_KEY` | — (optional, for model-weighted scoring) |
 
 ## Run Contract Tests
 

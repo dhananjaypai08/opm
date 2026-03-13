@@ -1,5 +1,5 @@
 import type { ScanReport, AgentEntry } from '@opm/core';
-import { averageScores, classifyRisk } from '@opm/core';
+import { classifyRisk, getModelWeight, calculateWeightedScore } from '@opm/core';
 import { runAgent, type LocalScanContext } from '../agents/base-agent';
 import { getAgentConfigs } from '../agents/agent-configs';
 import { setReportURIOnChain } from '../services/contract-writer';
@@ -57,8 +57,13 @@ async function executeScan(
 
   if (agents.length === 0) throw new Error('All agents failed');
 
-  const scores = agents.map((a) => a.result.risk_score);
-  const aggScore = averageScores(scores);
+  const weights = await Promise.all(agents.map(a => getModelWeight(a.model)));
+  const weightedScores = agents.map((a, i) => ({
+    score: a.result.risk_score,
+    weight: weights[i],
+  }));
+  
+  const aggScore = calculateWeightedScore(weightedScores);
 
   const report: ScanReport = {
     package: packageName,

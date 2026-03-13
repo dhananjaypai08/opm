@@ -42,6 +42,7 @@ export interface AgentScanResult {
 export interface AgentEntry {
   agent_id: string;
   model: string;
+  model_intelligence?: number;
   result: AgentScanResult;
 }
 

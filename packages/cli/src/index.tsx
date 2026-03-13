@@ -98,11 +98,9 @@ function Help() {
         <Text color="gray">Aliases:  i/add → install, rm → uninstall, ls → list</Text>
         <Text color="gray">          view name.eth → author profile, view pkg → info</Text>
         <Text> </Text>
-        <Text color="cyan" bold>Environment:</Text>
-        <Text>  OPM_PRIVATE_KEY        Author signing key</Text>
-        <Text>  CONTRACT_ADDRESS       OPMRegistry contract on Base Sepolia</Text>
-        <Text>  OPENAI_API_KEY         For AI security scanning</Text>
-        <Text>  NPM_TOKEN              npm automation token (alt to --token)</Text>
+        <Text color="cyan" bold>Environment (install/audit/info/view need no config):</Text>
+        <Text>  OPM_SIGNING_KEY        Author signing key (for push only)</Text>
+        <Text>  NPM_TOKEN              npm automation token (for push only)</Text>
       </Box>
     </Box>
   );

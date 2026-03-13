@@ -17,10 +17,14 @@ export function truncateAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-export function getEnvOrThrow(key: string): string {
+export function getEnvOrThrow(key: string, ...fallbackKeys: string[]): string {
   const val = process.env[key];
-  if (!val) throw new Error(`Missing required env var: ${key}`);
-  return val;
+  if (val) return val;
+  for (const fk of fallbackKeys) {
+    const fv = process.env[fk];
+    if (fv) return fv;
+  }
+  throw new Error(`Missing required env var: ${key}`);
 }
 
 export function getEnvOrDefault(key: string, fallback: string): string {

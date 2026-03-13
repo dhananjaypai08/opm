@@ -71,6 +71,10 @@ export function AuthorViewCommand({ ensName }: AuthorViewProps) {
     setEnsProfile(profile);
     update('profile', 'done');
 
+    const avatarPromise = profile.avatar
+      ? renderAvatar(profile.avatar).catch(() => null)
+      : Promise.resolve(null);
+
     update('onchain', 'running');
     let authorProfile: AuthorProfile | null = null;
     if (addr) {
@@ -99,6 +103,9 @@ export function AuthorViewCommand({ ensName }: AuthorViewProps) {
     } else {
       update('packages', 'skip');
     }
+
+    const art = await avatarPromise;
+    if (art) setAvatarArt(art);
 
     setDone(true);
   }

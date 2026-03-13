@@ -1,20 +1,22 @@
 import { ethers } from 'ethers';
-import { OPM_REGISTRY_ABI, getEnvOrThrow, getEnvOrDefault, BASE_SEPOLIA_RPC } from '@opm/core';
+import { OPM_REGISTRY_ABI, getEnvOrThrow, getEnvOrDefault, BASE_SEPOLIA_RPC, DEFAULT_CONTRACT_ADDRESS } from '@opm/core';
 import type { OnChainPackageInfo, AuthorProfile } from '@opm/core';
+
+function getContractAddress(): string {
+  return getEnvOrDefault('CONTRACT_ADDRESS', DEFAULT_CONTRACT_ADDRESS);
+}
 
 function getReadContract() {
   const rpc = getEnvOrDefault('BASE_SEPOLIA_RPC_URL', BASE_SEPOLIA_RPC);
   const provider = new ethers.JsonRpcProvider(rpc);
-  const address = getEnvOrThrow('CONTRACT_ADDRESS');
-  return new ethers.Contract(address, OPM_REGISTRY_ABI, provider);
+  return new ethers.Contract(getContractAddress(), OPM_REGISTRY_ABI, provider);
 }
 
 function getWriteContract() {
   const rpc = getEnvOrDefault('BASE_SEPOLIA_RPC_URL', BASE_SEPOLIA_RPC);
   const provider = new ethers.JsonRpcProvider(rpc);
-  const wallet = new ethers.Wallet(getEnvOrThrow('OPM_PRIVATE_KEY'), provider);
-  const address = getEnvOrThrow('CONTRACT_ADDRESS');
-  return new ethers.Contract(address, OPM_REGISTRY_ABI, wallet);
+  const wallet = new ethers.Wallet(getEnvOrThrow('OPM_SIGNING_KEY', 'OPM_PRIVATE_KEY'), provider);
+  return new ethers.Contract(getContractAddress(), OPM_REGISTRY_ABI, wallet);
 }
 
 export async function getPackageInfo(name: string, version: string): Promise<OnChainPackageInfo> {
@@ -105,8 +107,7 @@ export interface AuthorPackageSummary {
 export async function getPackagesByAuthor(authorAddress: string): Promise<AuthorPackageSummary[]> {
   const rpc = getEnvOrDefault('BASE_SEPOLIA_RPC_URL', BASE_SEPOLIA_RPC);
   const provider = new ethers.JsonRpcProvider(rpc);
-  const contractAddr = getEnvOrThrow('CONTRACT_ADDRESS');
-  const contract = new ethers.Contract(contractAddr, OPM_REGISTRY_ABI, provider);
+  const contract = new ethers.Contract(getContractAddress(), OPM_REGISTRY_ABI, provider);
 
   const packageMap = new Map<string, { name: string; version: string }>();
 

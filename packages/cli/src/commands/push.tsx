@@ -71,7 +71,7 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
     if (!name || !version) throw new Error('package.json missing name or version');
     setPkgLabel(`${name}@${version}`);
 
-    const privateKey = getEnvOrThrow('OPM_PRIVATE_KEY');
+    const privateKey = getEnvOrThrow('OPM_SIGNING_KEY', 'OPM_PRIVATE_KEY');
 
     updateStep('pack', 'running');
     const tarball = execSync('npm pack --json 2>/dev/null', { encoding: 'utf-8' });

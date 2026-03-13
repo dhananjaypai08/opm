@@ -4,21 +4,19 @@ import { addEnsContracts } from '@ensdomains/ensjs';
 import { getName } from '@ensdomains/ensjs/public';
 import { getRecords } from '@ensdomains/ensjs/public';
 import { getAddressRecord } from '@ensdomains/ensjs/public';
-import { getEnvOrDefault } from '@opm/core';
+import { getEnvOrDefault, ETH_SEPOLIA_RPC, ETH_MAINNET_RPC } from '@opm/core';
 
 function getSepoliaClient() {
-  const rpc = getEnvOrDefault('ETH_SEPOLIA_RPC_URL', 'https://ethereum-sepolia-rpc.publicnode.com');
   return createPublicClient({
     chain: addEnsContracts(sepolia),
-    transport: http(rpc),
+    transport: http(getEnvOrDefault('ETH_SEPOLIA_RPC_URL', ETH_SEPOLIA_RPC)),
   });
 }
 
 function getMainnetClient() {
-  const rpc = getEnvOrDefault('ETH_MAINNET_RPC_URL', 'https://eth.llamarpc.com');
   return createPublicClient({
     chain: addEnsContracts(mainnet),
-    transport: http(rpc),
+    transport: http(getEnvOrDefault('ETH_MAINNET_RPC_URL', ETH_MAINNET_RPC)),
   });
 }
 
