@@ -1,6 +1,6 @@
 # OPM - On-chain Package Manager
 
-On-chain security layer for npm packages. Authors sign packages with Ethereum keys, 3 AI agents scan every publish via OpenRouter, scores are submitted to a smart contract on Base Sepolia, and JSON scan reports are stored permanently on Fileverse/IPFS.
+On-chain security layer for npm packages. Authors sign packages with Ethereum keys, 3 AI agents scan every publish, scores are submitted to a smart contract on Base Sepolia, and JSON scan reports are stored as encrypted documents on Fileverse (dDocs).
 
 ## Architecture
 
@@ -35,6 +35,20 @@ cp .env.example .env
 npm install --legacy-peer-deps
 ```
 
+### Fileverse Setup
+
+OPM uses Fileverse dDocs to store encrypted scan reports. You need to run the `@fileverse/api` local server:
+
+1. Go to [ddocs.new](https://ddocs.new) → Settings → Developer Mode → Generate API key
+2. Add the key to `.env` as `FILEVERSE_API_KEY`
+3. Start the Fileverse API server:
+
+```bash
+npx @fileverse/api --apiKey YOUR_API_KEY
+```
+
+The server runs on `http://localhost:8001` by default. Reports are created as encrypted dDocs and synced to the blockchain, producing shareable links stored on-chain.
+
 ### Deploy Contract
 
 ```bash
@@ -51,20 +65,46 @@ npx hardhat run scripts/deploy.ts --network baseSepolia
 cd packages/contracts && npx hardhat test
 ```
 
+### Link CLI
+
+```bash
+bun link
+```
+
+This registers `opm` as a global command.
+
 ### Usage
 
 ```bash
 # Show help
-npm run opm
+opm
 
-# Push a package (from within a package directory)
-npm run opm -- push
+# Push a package (sign, publish, and trigger AI security scan)
+cd my-package && opm push
 
-# Install a specific package with security checks
-npm run opm -- install lodash
+# Install with on-chain security checks
+opm install lodash
+opm install                    # verify all deps in package.json
 
-# Install all deps with security verification
-npm run opm -- install
+# Audit all dependencies against on-chain security data
+opm audit
+
+# Look up on-chain security info for a package
+opm info lodash
+opm info lodash@4.17.21
+
+# Standard npm commands (passthrough)
+opm init
+opm run dev
+opm test
+opm start
+opm build
+opm uninstall lodash
+opm outdated
+opm update
+opm list
+opm link
+opm pack
 ```
 
 ### Standalone Scanner
@@ -79,14 +119,14 @@ npm run scan -- <package-name> <version>
 |---|---|
 | `OPM_PRIVATE_KEY` | Author's Ethereum private key for signing |
 | `AGENT_PRIVATE_KEY` | Agent wallet key (for contract gas on Base Sepolia) |
-| `OPENROUTER_API_KEY` | OpenRouter API key for AI model access |
+| `OPENAI_API_KEY` | OpenAI API key (auto-selects gpt-4.1 variants) |
+| `OPENROUTER_API_KEY` | OpenRouter API key (alternative to OpenAI) |
 | `CHAINPATROL_API_KEY` | ChainPatrol API key |
 | `BASE_SEPOLIA_RPC_URL` | Base Sepolia RPC URL |
 | `ETH_MAINNET_RPC_URL` | Mainnet RPC for ENS resolution |
 | `CONTRACT_ADDRESS` | Deployed OPMRegistry address |
-| `PINATA_JWT` | Pinata JWT for Fileverse IPFS uploads |
-| `PINATA_GATEWAY_URL` | Pinata gateway URL |
-| `PIMLICO_API_KEY` | Pimlico API key for Fileverse |
+| `FILEVERSE_API_KEY` | Fileverse API key (from ddocs.new Developer Mode) |
+| `FILEVERSE_API_URL` | Fileverse local API URL (default: http://localhost:8001) |
 
 ## Project Structure
 
@@ -95,7 +135,7 @@ packages/
   core/       - Shared types, constants, prompts, ABI
   contracts/  - OPMRegistry Solidity contract + Hardhat
   scanner/    - AI scanning agents + queue + Fileverse upload
-  cli/        - Ink-based CLI (opm push / opm install)
+  cli/        - Ink-based CLI (push, install, audit, info + npm passthrough)
 ```
 
 ## Smart Contract
@@ -119,7 +159,7 @@ Each produces a structured JSON report with risk score, vulnerabilities, supply 
 ## Integrations
 
 - **ENS**: On-chain author identity binding via ENS/Basenames
-- **Fileverse**: Decentralized JSON audit trail on IPFS
+- **Fileverse**: Encrypted dDocs for JSON audit trail, synced to blockchain
 - **ChainPatrol**: Fallback blocklist for packages not in the registry
 - **Base Sepolia**: Smart contract deployment chain
 

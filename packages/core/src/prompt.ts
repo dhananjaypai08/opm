@@ -52,10 +52,16 @@ Focus on these attack vectors:
 7. Sudden large changes between versions (new maintainer, scope change)
 8. Dependency confusion patterns (scoped vs unscoped name conflicts)`;
 
+export interface KnownCVE {
+  id: string;
+  summary: string;
+}
+
 export function buildUserPrompt(
   meta: PackageMetadata,
   versionHistory: VersionHistoryEntry[],
   sourceFiles: SourceFile[],
+  knownCVEs?: KnownCVE[],
 ): string {
   const depsStr = Object.entries(meta.dependencies || {})
     .map(([k, v]) => `${k}@${v}`)
@@ -80,6 +86,10 @@ export function buildUserPrompt(
     .map((f) => `### File: ${f.path} (${f.size} bytes)\n\`\`\`\n${f.content}\n\`\`\``)
     .join('\n\n');
 
+  const cveStr = knownCVEs && knownCVEs.length > 0
+    ? `## Known Vulnerabilities (from OSV/GitHub Advisory Database)\n${knownCVEs.map((c) => `- ${c.id}: ${c.summary}`).join('\n')}\n`
+    : '';
+
   return `Analyze this npm package for security risks.
 
 ## Package Metadata
@@ -94,7 +104,7 @@ export function buildUserPrompt(
 ## Version History (last 3 versions)
 ${historyStr || 'No previous versions available.'}
 
-## Source Code
+${cveStr}## Source Code
 ${codeStr || 'No source files found.'}
 
 Analyze this package thoroughly and respond with the JSON schema specified in your system instructions.`;

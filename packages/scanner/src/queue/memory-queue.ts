@@ -1,15 +1,9 @@
 import type { ScanReport, AgentEntry } from '@opm/core';
 import { averageScores, classifyRisk } from '@opm/core';
-import { runAgent } from '../agents/base-agent';
+import { runAgent, type LocalScanContext } from '../agents/base-agent';
 import { getAgentConfigs } from '../agents/agent-configs';
 import { setReportURIOnChain } from '../services/contract-writer';
 import { uploadReportToFileverse } from '../services/fileverse';
-import { buildVersionHistory, fetchPackageData } from '../services/npm-registry';
-
-export interface ScanJob {
-  packageName: string;
-  version: string;
-}
 
 export interface ScanJobResult {
   report: ScanReport;
@@ -18,21 +12,17 @@ export interface ScanJobResult {
 
 const activeJobs = new Map<string, Promise<ScanJobResult>>();
 
-function jobKey(pkg: string, ver: string): string {
-  return `${pkg}@${ver}`;
-}
-
 export async function enqueueScan(
   packageName: string,
   version: string,
   onStatus?: (msg: string) => void,
+  local?: LocalScanContext,
 ): Promise<ScanJobResult> {
-  const key = jobKey(packageName, version);
-
+  const key = `${packageName}@${version}`;
   const existing = activeJobs.get(key);
   if (existing) return existing;
 
-  const promise = executeScan(packageName, version, onStatus);
+  const promise = executeScan(packageName, version, onStatus, local);
   activeJobs.set(key, promise);
 
   try {
@@ -46,13 +36,14 @@ async function executeScan(
   packageName: string,
   version: string,
   onStatus?: (msg: string) => void,
+  local?: LocalScanContext,
 ): Promise<ScanJobResult> {
   const log = onStatus || console.log;
   const configs = getAgentConfigs();
 
   log('Starting parallel agent scans...');
   const results = await Promise.allSettled(
-    configs.map((cfg) => runAgent(cfg, packageName, version, onStatus)),
+    configs.map((cfg) => runAgent(cfg, packageName, version, onStatus, local)),
   );
 
   const agents: AgentEntry[] = [];
@@ -69,10 +60,6 @@ async function executeScan(
   const scores = agents.map((a) => a.result.risk_score);
   const aggScore = averageScores(scores);
 
-  const data = await fetchPackageData(packageName);
-  const history = buildVersionHistory(data, version);
-  const versionsAnalyzed = history.map((h) => h.version);
-
   const report: ScanReport = {
     package: packageName,
     version,
@@ -80,7 +67,7 @@ async function executeScan(
     agents,
     aggregate_risk_score: aggScore,
     consensus: classifyRisk(aggScore),
-    versions_analyzed: versionsAnalyzed,
+    versions_analyzed: [version],
   };
 
   log('Uploading report to Fileverse...');
@@ -96,8 +83,8 @@ async function executeScan(
   try {
     await setReportURIOnChain(packageName, version, reportURI);
     log('Report URI stored on-chain');
-  } catch (err) {
-    log(`On-chain report URI failed: ${err}`);
+  } catch (err: any) {
+    log(`On-chain report URI: ${err?.shortMessage || err?.message || 'failed'}`);
   }
 
   return { report, reportURI };

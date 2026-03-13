@@ -8,6 +8,7 @@ export interface Vulnerability {
   description: string;
   file: string;
   evidence: string;
+  cve_id?: string;
 }
 
 export interface SupplyChainIndicators {

@@ -1,12 +1,13 @@
 import { enqueueScan } from './queue/memory-queue';
 
 export { enqueueScan } from './queue/memory-queue';
+export type { LocalScanContext } from './agents/base-agent';
 export { runAgent } from './agents/base-agent';
 export { getAgentConfigs } from './agents/agent-configs';
-export { callOpenRouter } from './services/openrouter';
-export { fetchPackageData, extractMetadata, buildVersionHistory, fetchSourceFiles } from './services/npm-registry';
+export { callLLM, getLLMProvider } from './services/openrouter';
+export { fetchPackageData, extractMetadata, buildVersionHistory, fetchSourceFiles, extractLocalSourceFiles, buildLocalPackageData } from './services/npm-registry';
 export { submitScoreOnChain, setReportURIOnChain } from './services/contract-writer';
-export { uploadReportToFileverse } from './services/fileverse';
+export { uploadReportToFileverse, fetchReportFromFileverse } from './services/fileverse';
 
 if (import.meta.main) {
   const [pkg, ver] = process.argv.slice(2);

@@ -1,15 +1,20 @@
 export const HIGH_RISK_THRESHOLD = 70;
 export const MEDIUM_RISK_THRESHOLD = 40;
 
-export const DEFAULT_MODELS = {
+export const OPENROUTER_MODELS = {
   agent1: 'minimax/minimax-m2.5',
   agent2: 'openai/gpt-4.1',
-  agent3: 'google/gemini-2.5-flash-preview',
+  agent3: 'google/gemini-3-flash-preview',
 } as const;
 
-export const AGENT_IDS = ['minimax-m2.5', 'gpt-5.2', 'gemini-3-flash'] as const;
+export const OPENAI_MODELS = {
+  agent1: 'gpt-4.1',
+  agent2: 'gpt-4.1-mini',
+  agent3: 'gpt-4.1-nano',
+} as const;
 
 export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+export const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
 export const BASE_SEPOLIA_CHAIN_ID = 84532;
 export const BASE_SEPOLIA_RPC = 'https://sepolia.base.org';

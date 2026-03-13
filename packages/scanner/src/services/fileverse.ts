@@ -1,36 +1,89 @@
 import type { ScanReport } from '@opm/core';
-import { getEnvOrThrow } from '@opm/core';
+import { getEnvOrDefault } from '@opm/core';
+import { formatReportAsMarkdown } from './report-formatter';
+
+const DEFAULT_API_URL = 'http://localhost:8001';
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS = 60_000;
+
+function getApiConfig() {
+  const apiUrl = getEnvOrDefault('FILEVERSE_API_URL', DEFAULT_API_URL);
+  const apiKey = process.env.FILEVERSE_API_KEY;
+  if (!apiKey) throw new Error('FILEVERSE_API_KEY is required (generate at ddocs.new → Settings → Developer Mode)');
+  return { apiUrl, apiKey };
+}
 
 export async function uploadReportToFileverse(report: ScanReport): Promise<string> {
-  try {
-    const { Agent } = await import('@fileverse/agents');
-    const { privateKeyToAccount } = await import('viem/accounts');
+  const { apiUrl, apiKey } = getApiConfig();
 
-    const privateKey = getEnvOrThrow('AGENT_PRIVATE_KEY') as `0x${string}`;
-    const pimlicoKey = getEnvOrThrow('PIMLICO_API_KEY');
-    const pinataJwt = getEnvOrThrow('PINATA_JWT');
-    const pinataGateway = getEnvOrThrow('PINATA_GATEWAY_URL');
+  const title = `OPM Security Report: ${report.package}@${report.version}`;
+  const content = formatReportAsMarkdown(report);
 
-    const account = privateKeyToAccount(privateKey);
+  const res = await fetch(`${apiUrl}/api/ddocs?apiKey=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, content }),
+  });
 
-    const agent = new Agent({
-      chain: 'sepolia',
-      viemAccount: account,
-      pimlicoAPIKey: pimlicoKey,
-      storageProvider: {
-        pinataJWT: pinataJwt,
-        pinataGatewayURL: pinataGateway,
-      },
-    });
-
-    await agent.setupStorage(`opm-${report.package}`);
-
-    const content = JSON.stringify(report, null, 2);
-    const file = await agent.create(content);
-
-    return file.url || file.id || 'fileverse://uploaded';
-  } catch (err) {
-    console.error('Fileverse upload failed, falling back to local:', err);
-    return `local://report-${report.package}-${report.version}`;
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Fileverse create failed (${res.status}): ${body}`);
   }
+
+  const { data } = await res.json() as { data: { ddocId: string; syncStatus: string; link?: string } };
+  const ddocId = data.ddocId;
+
+  if (data.syncStatus === 'synced' && data.link) return data.link;
+
+  const link = await pollForSync(apiUrl, apiKey, ddocId);
+  return link;
+}
+
+async function pollForSync(apiUrl: string, apiKey: string, ddocId: string): Promise<string> {
+  const start = Date.now();
+
+  while (Date.now() - start < POLL_TIMEOUT_MS) {
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+
+    const res = await fetch(`${apiUrl}/api/ddocs/${ddocId}?apiKey=${encodeURIComponent(apiKey)}`);
+    if (!res.ok) continue;
+
+    const doc = await res.json() as { syncStatus: string; link?: string };
+    if (doc.syncStatus === 'synced' && doc.link) return doc.link;
+    if (doc.syncStatus === 'failed') throw new Error('Fileverse blockchain sync failed');
+  }
+
+  return `https://ddocs.new/pending/${ddocId}`;
+}
+
+export async function fetchReportFromFileverse(reportURI: string): Promise<ScanReport | null> {
+  if (!reportURI || reportURI.startsWith('local://')) return null;
+
+  const apiKey = process.env.FILEVERSE_API_KEY;
+  const apiUrl = getEnvOrDefault('FILEVERSE_API_URL', DEFAULT_API_URL);
+
+  const ddocId = extractDdocId(reportURI);
+  if (ddocId && apiKey) {
+    try {
+      const res = await fetch(`${apiUrl}/api/ddocs/${ddocId}?apiKey=${encodeURIComponent(apiKey)}`);
+      if (res.ok) {
+        const doc = await res.json() as { content: string };
+        return JSON.parse(doc.content) as ScanReport;
+      }
+    } catch { /* fall through */ }
+  }
+
+  return null;
+}
+
+function extractDdocId(link: string): string | null {
+  try {
+    const url = new URL(link);
+    const parts = url.pathname.split('/');
+    const dIdx = parts.indexOf('d');
+    if (dIdx >= 0 && parts[dIdx + 1]) return parts[dIdx + 1];
+    const pendingIdx = parts.indexOf('pending');
+    if (pendingIdx >= 0 && parts[pendingIdx + 1]) return parts[pendingIdx + 1];
+  } catch { /* not a URL */ }
+  return null;
 }

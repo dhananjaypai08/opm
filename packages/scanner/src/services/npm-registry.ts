@@ -1,11 +1,12 @@
 import { NPM_REGISTRY_URL, SCANNABLE_EXTENSIONS, MAX_FILE_SIZE_BYTES, MAX_TOTAL_CODE_CHARS, VERSION_LOOKBACK } from '@opm/core';
 import type { PackageMetadata, VersionHistoryEntry, SourceFile } from '@opm/core';
-import * as tar from 'tar';
-import { Readable } from 'stream';
-import { createGunzip } from 'zlib';
 import * as path from 'path';
+import * as fs from 'fs';
+import { execSync } from 'child_process';
+import { randomUUID } from 'crypto';
+import * as os from 'os';
 
-interface NpmPackageData {
+export interface NpmPackageData {
   name: string;
   versions: Record<string, {
     version: string;
@@ -22,9 +23,30 @@ interface NpmPackageData {
 }
 
 export async function fetchPackageData(packageName: string): Promise<NpmPackageData> {
-  const res = await fetch(`${NPM_REGISTRY_URL}/${packageName}`);
+  const res = await fetch(`${NPM_REGISTRY_URL}/${encodeURIComponent(packageName)}`);
   if (!res.ok) throw new Error(`npm registry ${res.status} for ${packageName}`);
   return res.json() as Promise<NpmPackageData>;
+}
+
+export function buildLocalPackageData(pkgJsonPath: string): NpmPackageData {
+  const raw = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+  const version = raw.version || '0.0.0';
+  return {
+    name: raw.name || 'unknown',
+    'dist-tags': { latest: version },
+    time: { [version]: new Date().toISOString() },
+    versions: {
+      [version]: {
+        version,
+        description: raw.description || '',
+        author: raw.author || '',
+        license: raw.license || '',
+        dependencies: raw.dependencies || {},
+        scripts: raw.scripts || {},
+        dist: { tarball: '', fileCount: 0, unpackedSize: 0 },
+      },
+    },
+  };
 }
 
 export function extractMetadata(data: NpmPackageData, version: string): PackageMetadata {
@@ -32,7 +54,7 @@ export function extractMetadata(data: NpmPackageData, version: string): PackageM
   if (!v) throw new Error(`Version ${version} not found for ${data.name}`);
   const authorStr = typeof v.author === 'string' ? v.author : v.author?.name || '';
   return {
-    name: v.version ? data.name : data.name,
+    name: data.name,
     version: v.version,
     description: v.description || '',
     author: authorStr,
@@ -77,38 +99,61 @@ export function buildVersionHistory(data: NpmPackageData, currentVersion: string
   });
 }
 
-export async function fetchSourceFiles(packageName: string, version: string, tarballUrl: string): Promise<SourceFile[]> {
-  const res = await fetch(tarballUrl);
-  if (!res.ok) throw new Error(`Failed to fetch tarball: ${res.status}`);
+function extractFilesFromTarball(tarballPath: string): SourceFile[] {
+  const tmpDir = path.join(os.tmpdir(), `opm-extract-${randomUUID()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
 
-  const buffer = Buffer.from(await res.arrayBuffer());
+  try {
+    execSync(`tar -xzf "${tarballPath}" -C "${tmpDir}"`, { stdio: 'pipe' });
+    return walkAndCollect(tmpDir, tmpDir);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+function walkAndCollect(dir: string, root: string): SourceFile[] {
   const files: SourceFile[] = [];
   let totalChars = 0;
 
-  return new Promise((resolve, reject) => {
-    const extract = new tar.Parse({
-      filter: (p: string) => {
-        const ext = path.extname(p);
-        return SCANNABLE_EXTENSIONS.includes(ext);
-      },
-      onentry: (entry: tar.ReadEntry) => {
-        const chunks: Buffer[] = [];
-        entry.on('data', (chunk: Buffer) => chunks.push(chunk));
-        entry.on('end', () => {
-          const content = Buffer.concat(chunks).toString('utf-8');
-          if (content.length > MAX_FILE_SIZE_BYTES) return;
-          if (totalChars + content.length > MAX_TOTAL_CODE_CHARS) return;
-          totalChars += content.length;
+  function walk(current: string) {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (totalChars >= MAX_TOTAL_CODE_CHARS) return;
+      const fullPath = path.join(current, entry.name);
 
-          const filePath = entry.path.replace(/^package\//, '');
-          files.push({ path: filePath, size: content.length, content });
-        });
-      },
-    });
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === '.git') continue;
+        walk(fullPath);
+      } else if (SCANNABLE_EXTENSIONS.includes(path.extname(entry.name))) {
+        const stat = fs.statSync(fullPath);
+        if (stat.size > MAX_FILE_SIZE_BYTES) continue;
 
-    const stream = Readable.from(buffer);
-    stream.pipe(createGunzip()).pipe(extract);
-    extract.on('end', () => resolve(files));
-    extract.on('error', reject);
-  });
+        const content = fs.readFileSync(fullPath, 'utf-8');
+        if (totalChars + content.length > MAX_TOTAL_CODE_CHARS) continue;
+        totalChars += content.length;
+
+        const relPath = path.relative(root, fullPath).replace(/^package\//, '');
+        files.push({ path: relPath, size: content.length, content });
+      }
+    }
+  }
+
+  walk(dir);
+  return files;
+}
+
+export async function fetchSourceFiles(_packageName: string, _version: string, tarballUrl: string): Promise<SourceFile[]> {
+  const res = await fetch(tarballUrl);
+  if (!res.ok) throw new Error(`Failed to fetch tarball: ${res.status}`);
+
+  const tmpFile = path.join(os.tmpdir(), `opm-dl-${randomUUID()}.tgz`);
+  try {
+    fs.writeFileSync(tmpFile, Buffer.from(await res.arrayBuffer()));
+    return extractFilesFromTarball(tmpFile);
+  } finally {
+    if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+  }
+}
+
+export async function extractLocalSourceFiles(tarballPath: string): Promise<SourceFile[]> {
+  return extractFilesFromTarball(tarballPath);
 }
