@@ -1,0 +1,6 @@
+[install]
+peer = false
+
+[run]
+jsx = "react-jsx"
+jsxImportSource = "react"

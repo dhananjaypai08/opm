@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "jsx": "react-jsx",
+    "types": ["bun-types"],
+    "paths": {
+      "@opm/core": ["./packages/core/src/index.ts"],
+      "@opm/scanner": ["./packages/scanner/src/index.ts"]
+    },
+    "baseUrl": "."
+  },
+  "exclude": ["node_modules", "dist", "packages/contracts"]
+}

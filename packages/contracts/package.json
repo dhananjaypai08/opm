@@ -1,0 +1,10 @@
+{
+  "name": "@opm/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^17.3.1",
+    "hardhat": "^2.28.6"
+  }
+}
