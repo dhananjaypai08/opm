@@ -1,4 +1,4 @@
-import { SYSTEM_PROMPT, buildUserPrompt } from '@opm/core';
+import { SYSTEM_PROMPT, buildUserPrompt, getModelRankingFor } from '@opm/core';
 import type { AgentEntry, KnownCVE } from '@opm/core';
 import {
   fetchPackageData, buildLocalPackageData, extractMetadata,
@@ -59,6 +59,11 @@ export async function runAgent(
   const userPrompt = buildUserPrompt(meta, history, sourceFiles, knownCVEs);
   const result = await callLLM(config.model, SYSTEM_PROMPT, userPrompt);
 
+  log(`[${config.agentId}] Fetching model intelligence ranking...`);
+  const { intelligence, coding, weight } = await getModelRankingFor(config.model);
+
+  log(`[${config.agentId}] ${config.model} — intelligence: ${intelligence}, coding: ${coding}, weight: ${weight}`);
+
   log(`[${config.agentId}] Submitting score (${result.risk_score}) to contract...`);
   try {
     await submitScoreOnChain(packageName, version, result.risk_score, result.reasoning);
@@ -70,6 +75,9 @@ export async function runAgent(
   return {
     agent_id: config.agentId,
     model: config.model,
+    model_intelligence: intelligence,
+    model_coding: coding,
+    model_weight: weight,
     result,
   };
 }

@@ -242,26 +242,38 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
         <Box flexDirection="column" marginTop={1}>
           <Text color="gray">────────────────────────────────────────</Text>
           <Text color="white" bold> Agent Results</Text>
-          {result.agents.map((agent) => (
-            <Box key={agent.agent_id} flexDirection="column" marginLeft={2} marginTop={1}>
-              <Box>
-                <Text color="white" bold>{agent.agent_id}</Text>
-                <Text color="gray"> ({agent.model}) </Text>
-                <Text color={riskColor(agent.result.risk_score)} bold>
-                  {agent.result.risk_score}/100
-                </Text>
-                <Text color="gray"> {agent.result.risk_level}</Text>
-              </Box>
-              <Box marginLeft={2}>
-                <Text color="gray" wrap="wrap">{agent.result.reasoning.slice(0, 200)}</Text>
-              </Box>
-              {agent.result.vulnerabilities.length > 0 && (
-                <Box marginLeft={2}>
-                  <Text color="yellow">{agent.result.vulnerabilities.length} vulnerabilities found</Text>
+          {result.agents.map((agent) => {
+            const intel = agent.model_intelligence || 0;
+            const coding = agent.model_coding || 0;
+            const weight = agent.model_weight || 0;
+            return (
+              <Box key={agent.agent_id} flexDirection="column" marginLeft={2} marginTop={1}>
+                <Box>
+                  <Text color="white" bold>{agent.agent_id}</Text>
+                  <Text color="gray"> ({agent.model}) </Text>
+                  <Text color={riskColor(agent.result.risk_score)} bold>
+                    {agent.result.risk_score}/100
+                  </Text>
+                  <Text color="gray"> {agent.result.risk_level}</Text>
                 </Box>
-              )}
-            </Box>
-          ))}
+                <Box marginLeft={2}>
+                  <Text color="magenta">AI Index: {intel}</Text>
+                  <Text color="gray"> | </Text>
+                  <Text color="blue">Coding: {coding}</Text>
+                  <Text color="gray"> | </Text>
+                  <Text color="cyan">Weight: {weight}</Text>
+                </Box>
+                <Box marginLeft={2}>
+                  <Text color="gray" wrap="wrap">{agent.result.reasoning.slice(0, 200)}</Text>
+                </Box>
+                {agent.result.vulnerabilities.length > 0 && (
+                  <Box marginLeft={2}>
+                    <Text color="yellow">{agent.result.vulnerabilities.length} vulnerabilities found</Text>
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
         </Box>
       )}
 
@@ -269,7 +281,7 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
         <Box flexDirection="column" marginTop={1}>
           <Text color="gray">────────────────────────────────────────</Text>
           <Box>
-            <Text color="white" bold> Aggregate Risk: </Text>
+            <Text color="white" bold> Aggregate Risk (intelligence-weighted): </Text>
             <RiskBadge level={classifyRisk(result.riskScore)} score={result.riskScore} />
           </Box>
         </Box>

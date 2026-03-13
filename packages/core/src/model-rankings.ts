@@ -75,30 +75,29 @@ const MODEL_SLUGS: Record<string, string> = {
   'gpt-4.1-nano': 'gpt-4.1-nano',
 };
 
-export async function getModelWeight(modelSlug: string): Promise<number> {
-  const rankings = await fetchModelRankings();
+function findModel(rankings: ModelRanking[], modelSlug: string): ModelRanking | undefined {
   const normalizedSlug = MODEL_SLUGS[modelSlug] || modelSlug.toLowerCase();
-  const model = rankings.find(m => 
-    m.slug.toLowerCase() === normalizedSlug || 
-    m.name.toLowerCase().includes(normalizedSlug) ||
-    normalizedSlug.includes(m.slug.toLowerCase())
-  );
-  
+  return rankings.find(m => m.slug.toLowerCase() === normalizedSlug)
+    || rankings.find(m => m.name.toLowerCase() === normalizedSlug)
+    || rankings.find(m => m.name.toLowerCase().includes(normalizedSlug));
+}
+
+export async function getModelWeight(modelSlug: string): Promise<number> {
+  const model = findModel(await fetchModelRankings(), modelSlug);
   if (!model) return 50;
-  
   return Math.round((model.intelligenceIndex + model.codingIndex) / 2);
 }
 
 export async function getModelIntelligence(modelSlug: string): Promise<number> {
-  const rankings = await fetchModelRankings();
-  const normalizedSlug = MODEL_SLUGS[modelSlug] || modelSlug.toLowerCase();
-  const model = rankings.find(m => 
-    m.slug.toLowerCase() === normalizedSlug || 
-    m.name.toLowerCase().includes(normalizedSlug) ||
-    normalizedSlug.includes(m.slug.toLowerCase())
-  );
-  
+  const model = findModel(await fetchModelRankings(), modelSlug);
   return model?.intelligenceIndex || 50;
+}
+
+export async function getModelRankingFor(modelSlug: string): Promise<{ intelligence: number; coding: number; weight: number }> {
+  const model = findModel(await fetchModelRankings(), modelSlug);
+  const intelligence = model?.intelligenceIndex || 50;
+  const coding = model?.codingIndex || 50;
+  return { intelligence, coding, weight: Math.round((intelligence + coding) / 2) };
 }
 
 export function calculateWeightedScore(

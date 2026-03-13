@@ -49,10 +49,15 @@ function formatAgent(agent: AgentEntry, index: number): string {
   const { result } = agent;
   const emoji = riskEmoji(result.risk_score);
 
+  const modelLines = [`- **Model:** \`${agent.model}\``];
+  if (agent.model_intelligence || agent.model_coding) {
+    modelLines.push(`- **AI Intelligence Index:** ${agent.model_intelligence || '—'}/100 | **Coding Index:** ${agent.model_coding || '—'}/100 | **Weight:** ${agent.model_weight || '—'}`);
+  }
+
   return [
     `### Agent ${index + 1}: \`${agent.agent_id}\``,
     '',
-    `- **Model:** \`${agent.model}\``,
+    ...modelLines,
     `- **Risk Score:** ${emoji} **${result.risk_score}/100** (${result.risk_level})`,
     `- **Recommendation:** ${result.recommendation}`,
     '',
@@ -101,9 +106,11 @@ export function formatReportAsMarkdown(report: ScanReport): string {
     '',
     '---',
     '',
-    '## Aggregate Risk',
+    '## Aggregate Risk (Intelligence-Weighted)',
     '',
     `\`${riskBar(report.aggregate_risk_score)}\` **${report.aggregate_risk_score}/100** — ${report.consensus}`,
+    '',
+    `> Scores are weighted by each model's AI Intelligence and Coding indices from [Artificial Analysis](https://artificialanalysis.ai).`,
     '',
     report.aggregate_risk_score < 40
       ? '> ✅ This package appears safe based on multi-agent consensus.'
