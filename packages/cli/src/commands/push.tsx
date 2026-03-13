@@ -40,7 +40,12 @@ interface PushResult {
   blockReason?: string;
 }
 
-export function PushCommand() {
+interface PushCommandProps {
+  npmToken?: string;
+  otp?: string;
+}
+
+export function PushCommand({ npmToken, otp }: PushCommandProps) {
   const [steps, setSteps] = useState<Steps>({
     pack: 'pending', sign: 'pending', ens: 'pending',
     scan: 'pending', publish: 'pending', register: 'pending',
@@ -132,12 +137,25 @@ export function PushCommand() {
     fs.writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2));
 
     updateStep('publish', 'running');
-    const isNpmLoggedIn = (() => {
-      try { execSync('npm whoami', { encoding: 'utf-8', stdio: 'pipe' }); return true; } catch { return false; }
-    })();
-    if (isNpmLoggedIn) {
+    const token = npmToken || process.env.NPM_TOKEN;
+    const npmrcPath = path.resolve('.npmrc');
+    const existingNpmrc = fs.existsSync(npmrcPath) ? fs.readFileSync(npmrcPath, 'utf-8') : null;
+
+    let canPublish = false;
+    if (token) {
+      fs.writeFileSync(npmrcPath, `//registry.npmjs.org/:_authToken=${token}\n`);
+      canPublish = true;
+    } else {
+      canPublish = (() => {
+        try { execSync('npm whoami', { encoding: 'utf-8', stdio: 'pipe' }); return true; } catch { return false; }
+      })();
+    }
+
+    if (canPublish) {
       try {
-        execSync('npm publish --access public', { encoding: 'utf-8', stdio: 'pipe' });
+        let publishCmd = 'npm publish --access public';
+        if (otp) publishCmd += ` --otp=${otp}`;
+        execSync(publishCmd, { encoding: 'utf-8', stdio: 'pipe' });
         setResult((r) => ({
           ...r,
           npmUrl: `https://www.npmjs.com/package/${name}/v/${version}`,
@@ -145,10 +163,12 @@ export function PushCommand() {
       } catch (err: any) {
         const msg = err?.stderr || err?.stdout || err?.message || '';
         let reason = 'version may already exist';
-        if (msg.includes('Two-factor') || msg.includes('2fa')) {
-          reason = '2FA required — run: npm publish --otp=<code>';
+        if (msg.includes('Two-factor') || msg.includes('2fa') || msg.includes('EOTP')) {
+          reason = token
+            ? '2FA enforced — your token needs "bypass 2FA" enabled, or use --otp <code>'
+            : '2FA required — use: opm push --otp <code> or --token <automation-token>';
         } else if (msg.includes('E403')) {
-          reason = 'forbidden — check npm account permissions';
+          reason = 'forbidden — check npm token permissions';
         } else if (msg.includes('E402')) {
           reason = 'payment required — scoped packages need npm Pro';
         } else {
@@ -158,10 +178,18 @@ export function PushCommand() {
           );
           if (errorLine) reason = errorLine.replace(/^npm\s+(error|ERR!)\s*/i, '').trim();
         }
-        setResult((r) => ({ ...r, npmError: reason.slice(0, 120) }));
+        setResult((r) => ({ ...r, npmError: reason.slice(0, 150) }));
       }
     } else {
-      setResult((r) => ({ ...r, npmError: 'skipped — run npm login first' }));
+      setResult((r) => ({ ...r, npmError: 'not authenticated — use: opm push --token <npm-token>' }));
+    }
+
+    if (token) {
+      if (existingNpmrc !== null) {
+        fs.writeFileSync(npmrcPath, existingNpmrc);
+      } else if (fs.existsSync(npmrcPath)) {
+        fs.unlinkSync(npmrcPath);
+      }
     }
     updateStep('publish', 'done');
 

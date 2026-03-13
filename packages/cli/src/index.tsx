@@ -28,8 +28,13 @@ const PASSTHROUGH = new Set(['init', 'run', 'test', 'uninstall', 'remove', 'rm',
 
 function App() {
   switch (command) {
-    case 'push':
-      return <PushCommand />;
+    case 'push': {
+      const tokenIdx = rest.findIndex((a) => a === '--token' || a === '--access-token');
+      const npmToken = tokenIdx >= 0 ? rest[tokenIdx + 1] : undefined;
+      const otpIdx = rest.findIndex((a) => a === '--otp');
+      const otp = otpIdx >= 0 ? rest[otpIdx + 1] : undefined;
+      return <PushCommand npmToken={npmToken} otp={otp} />;
+    }
     case 'install':
     case 'i':
     case 'add': {
@@ -70,7 +75,7 @@ function Help() {
       <Header />
       <Box flexDirection="column" marginLeft={2}>
         <Text color="cyan" bold>Security commands:</Text>
-        <Text>  opm push                Sign, publish, and trigger AI security scan</Text>
+        <Text>  opm push [--token t] [--otp c]  Sign, scan, publish, register</Text>
         <Text>  opm install [pkg]       Install with on-chain security verification</Text>
         <Text>  opm audit               Scan all deps against on-chain security data</Text>
         <Text>  opm info {'<pkg>'}            Show on-chain security info for a package</Text>
@@ -97,6 +102,7 @@ function Help() {
         <Text>  OPM_PRIVATE_KEY        Author signing key</Text>
         <Text>  CONTRACT_ADDRESS       OPMRegistry contract on Base Sepolia</Text>
         <Text>  OPENAI_API_KEY         For AI security scanning</Text>
+        <Text>  NPM_TOKEN              npm automation token (alt to --token)</Text>
       </Box>
     </Box>
   );

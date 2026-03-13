@@ -1,53 +1,33 @@
-# OPM - On-chain Package Manager
+# OPM — On-chain Package Manager
 
-On-chain security layer for npm packages. Authors sign packages with Ethereum keys, 3 AI agents scan every publish, scores are submitted to a smart contract on Base Sepolia, and JSON scan reports are stored as encrypted documents on Fileverse (dDocs).
+A security-first CLI wrapper around npm that brings on-chain verification, multi-agent AI scanning, and decentralized audit trails to the JavaScript package ecosystem.
 
-## Architecture
+Authors sign packages with Ethereum keys. Three AI agents scan every publish in parallel and submit structured risk scores to a smart contract on Base Sepolia. Scan reports are stored as encrypted documents on Fileverse dDocs. Consumers verify signatures, check CVE databases, and consult on-chain scores before installing.
 
-```
-Author -> opm push -> Sign checksum -> Publish to npm -> Register on-chain
-                                                       -> 3 AI agents scan in parallel
-                                                       -> Upload JSON report to Fileverse
-                                                       -> Submit scores to contract
-
-Dev -> opm install pkg -> Query contract for scores
-                       -> Verify author signature
-                       -> ENS identity lookup
-                       -> Fetch Fileverse report
-                       -> ChainPatrol fallback
-                       -> Install if safe
-```
-
-## Quick Start
+## Setup
 
 ### Prerequisites
 
 - [Bun](https://bun.sh) >= 1.2
 - Node.js >= 20
-- An Ethereum wallet with Base Sepolia ETH
+- An Ethereum wallet with Base Sepolia ETH (for gas)
 
-### Setup
+### Install Dependencies
 
 ```bash
+git clone <repo> && cd opm
 cp .env.example .env
-# Fill in your keys in .env
-
-npm install --legacy-peer-deps
+# Fill in your keys (see Environment Variables below)
+bun install
 ```
 
-### Fileverse Setup
-
-OPM uses Fileverse dDocs to store encrypted scan reports. You need to run the `@fileverse/api` local server:
-
-1. Go to [ddocs.new](https://ddocs.new) → Settings → Developer Mode → Generate API key
-2. Add the key to `.env` as `FILEVERSE_API_KEY`
-3. Start the Fileverse API server:
+### Link CLI Globally
 
 ```bash
-npx @fileverse/api --apiKey YOUR_API_KEY
+bun link
 ```
 
-The server runs on `http://localhost:8001` by default. Reports are created as encrypted dDocs and synced to the blockchain, producing shareable links stored on-chain.
+This registers `opm` as a global command.
 
 ### Deploy Contract
 
@@ -56,112 +36,230 @@ cd packages/contracts
 npm install
 npx hardhat compile
 npx hardhat run scripts/deploy.ts --network baseSepolia
-# Copy the contract address to .env as CONTRACT_ADDRESS
+# Copy the deployed address to .env as CONTRACT_ADDRESS
 ```
 
-### Run Tests
+### Fileverse Setup
+
+OPM stores formatted security reports on Fileverse dDocs (encrypted, on-chain synced).
+
+1. Go to [ddocs.new](https://ddocs.new) → Settings → Developer Mode → Generate API key
+2. Add the key to `.env` as `FILEVERSE_API_KEY`
+3. Start the local Fileverse API server:
 
 ```bash
-cd packages/contracts && npx hardhat test
+npx @fileverse/api --apiKey YOUR_API_KEY
 ```
 
-### Link CLI
+The server runs on `http://localhost:8001` by default.
 
-```bash
-bun link
+## Architecture
+
+```
+opm push
+  ├─ Pack tarball & compute SHA-256 checksum
+  ├─ Sign checksum with author's Ethereum key (ECDSA)
+  ├─ Resolve ENS identity (Sepolia + Mainnet)
+  ├─ 3 AI agents scan source code in parallel
+  │   ├─ Risk score, vulnerabilities, supply chain indicators
+  │   ├─ Submit scores to OPMRegistry contract
+  │   └─ Upload styled markdown report to Fileverse dDocs
+  ├─ BLOCK if aggregate risk >= 80 (CRITICAL)
+  ├─ Publish to npm (with --token for automation)
+  └─ Register package + signature + report URI on-chain
+
+opm install <pkg>
+  ├─ Resolve version (on-chain latest or specified)
+  ├─ Query CVE database (OSV API) — block CRITICAL, warn HIGH
+  ├─ Look up on-chain registry (risk score, agent consensus)
+  ├─ Verify ECDSA signature against checksum
+  ├─ ChainPatrol fallback for unknown packages
+  ├─ Fetch Fileverse report link
+  └─ Install via npm if safe
+
+opm view <name.eth>
+  ├─ Resolve ENS name → address (@ensdomains/ensjs + viem)
+  ├─ Fetch ENS text records (avatar, bio, GitHub, Twitter)
+  ├─ Render avatar as pixel art in terminal
+  ├─ Query on-chain author stats (packages, reputation)
+  └─ List all published packages with risk scores + report links
 ```
 
-This registers `opm` as a global command.
+## Commands
 
-### Usage
+### Security Commands
 
 ```bash
-# Show help
-opm
+# Sign, scan, publish, and register on-chain
+opm push
+opm push --token <npm-automation-token>
 
-# Push a package (sign, publish, and trigger AI security scan)
-cd my-package && opm push
-
-# Install with on-chain security checks
+# Install with full security pipeline
 opm install lodash
+opm install lodash@4.17.21
 opm install                    # verify all deps in package.json
 
-# Audit all dependencies against on-chain security data
+# Audit all dependencies against on-chain + CVE data
 opm audit
 
 # Look up on-chain security info for a package
 opm info lodash
 opm info lodash@4.17.21
 
-# Standard npm commands (passthrough)
-opm init
-opm run dev
-opm test
-opm start
-opm build
-opm uninstall lodash
-opm outdated
-opm update
-opm list
-opm link
-opm pack
+# View an author's ENS profile, packages, and risk scores
+opm view djpai.eth
+opm whois djpai
 ```
+
+### npm Passthrough
+
+All standard npm commands work transparently:
+
+```bash
+opm init            opm run dev         opm test
+opm start           opm build           opm uninstall lodash
+opm outdated        opm update          opm list
+opm link            opm pack
+```
+
+**Aliases:** `i` / `add` → install, `rm` → uninstall, `ls` → list
 
 ### Standalone Scanner
 
 ```bash
-npm run scan -- <package-name> <version>
+bun run scan -- <package-name> <version>
 ```
 
-## Environment Variables
+## npm Publishing
 
-| Variable | Description |
-|---|---|
-| `OPM_PRIVATE_KEY` | Author's Ethereum private key for signing |
-| `AGENT_PRIVATE_KEY` | Agent wallet key (for contract gas on Base Sepolia) |
-| `OPENAI_API_KEY` | OpenAI API key (auto-selects gpt-4.1 variants) |
-| `OPENROUTER_API_KEY` | OpenRouter API key (alternative to OpenAI) |
-| `CHAINPATROL_API_KEY` | ChainPatrol API key |
-| `BASE_SEPOLIA_RPC_URL` | Base Sepolia RPC URL |
-| `ETH_MAINNET_RPC_URL` | Mainnet RPC for ENS resolution |
-| `CONTRACT_ADDRESS` | Deployed OPMRegistry address |
-| `FILEVERSE_API_KEY` | Fileverse API key (from ddocs.new Developer Mode) |
-| `FILEVERSE_API_URL` | Fileverse local API URL (default: http://localhost:8001) |
+OPM handles npm publish as part of `opm push`. If your npm account has 2FA enabled, use an automation token:
+
+1. Go to [npmjs.com](https://www.npmjs.com) → Access Tokens → Generate New Token → **Automation**
+2. Pass it via CLI flag or environment:
+
+```bash
+opm push --token npm_xxxxxxxxxxxx
+# or
+NPM_TOKEN=npm_xxxxxxxxxxxx opm push
+# or add NPM_TOKEN to your .env
+```
+
+The scan runs **before** publish — if the aggregate risk score is CRITICAL (>= 80), the publish and on-chain registration are blocked.
+
+## Security Pipeline
+
+### `opm install` Flow
+
+1. **Version resolution** — resolves "latest" from on-chain registry
+2. **CVE database** — queries [OSV API](https://osv.dev) for known vulnerabilities; computes CVSS v3 base scores
+   - CRITICAL CVEs → installation blocked
+   - HIGH CVEs → warning displayed
+   - Shows CVE ID, severity, summary, and suggested fix version
+3. **On-chain registry** — fetches agent consensus risk score
+4. **Signature verification** — verifies ECDSA signature against package checksum
+5. **ChainPatrol** — fallback blocklist check for packages not in the registry
+6. **Fileverse report** — links to the full AI scan report
+7. **Install** — runs `npm install` if all checks pass
+
+### `opm push` Flow
+
+1. **Pack & sign** — SHA-256 checksum, ECDSA signature
+2. **ENS resolution** — maps author address to ENS name
+3. **AI security scan** — 3 agents analyze source code, metadata, and version history
+4. **Risk gate** — blocks publish if score >= 80
+5. **npm publish** — with token-based auth support
+6. **On-chain registration** — stores checksum, signature, ENS name, and report URI
+
+## AI Agents
+
+Three models scan every package in parallel:
+
+| Agent | OpenRouter Model | OpenAI Fallback |
+|-------|-----------------|-----------------|
+| Agent 1 | Claude Sonnet 4 | GPT-4.1 |
+| Agent 2 | Gemini 2.5 Flash | GPT-4.1 Mini |
+| Agent 3 | DeepSeek Chat | GPT-4.1 Nano |
+
+If `OPENROUTER_API_KEY` is set, OPM uses diverse models for better consensus. Otherwise falls back to OpenAI variants via `OPENAI_API_KEY`.
+
+Each agent produces a structured JSON report covering:
+- Risk score (0-100) and risk level
+- Vulnerability analysis with CVE cross-referencing
+- Supply chain indicators (install scripts, obfuscation, network calls, eval usage)
+- Version history analysis and changelog risk assessment
+
+## ENS Integration
+
+OPM uses the official [`@ensdomains/ensjs`](https://github.com/ensdomains/ensjs) SDK with `viem` for:
+
+- **Address → Name** resolution across Sepolia and Mainnet
+- **Name → Address** resolution for author lookups
+- **Text record** fetching (avatar, bio, URL, GitHub, Twitter, email)
+- **Terminal avatar** rendering via `terminal-image` (ANSI pixel art)
+- **Author profiles** via `opm view <name.eth>` showing published packages and risk scores
+
+The smart contract stores ENS names alongside author addresses for on-chain identity binding.
+
+## Integrations
+
+| Integration | Purpose |
+|-------------|---------|
+| **Base Sepolia** | Smart contract deployment (OPMRegistry) |
+| **ENS** | On-chain author identity, profile display, name resolution |
+| **Fileverse dDocs** | Encrypted, decentralized storage for styled security reports |
+| **ChainPatrol** | Fallback blocklist for packages not in the registry |
+| **OSV API** | Real CVE/GHSA vulnerability data with CVSS v3 scoring |
+| **OpenRouter / OpenAI** | Multi-model AI scanning (Claude, Gemini, DeepSeek, GPT) |
+
+## Smart Contract
+
+`OPMRegistry.sol` on Base Sepolia:
+
+- Package registration with checksum, signature, and ENS binding
+- Authorized agent score submission (gas-funded agent wallets)
+- Fileverse report URI storage per package version
+- Aggregate risk scoring across agents
+- Safest version lookup with configurable lookback
+- Author reputation tracking (average score across all packages)
+- ENS-to-author mapping for reverse lookups
 
 ## Project Structure
 
 ```
 packages/
-  core/       - Shared types, constants, prompts, ABI
-  contracts/  - OPMRegistry Solidity contract + Hardhat
-  scanner/    - AI scanning agents + queue + Fileverse upload
-  cli/        - Ink-based CLI (push, install, audit, info + npm passthrough)
+  core/        Shared types, constants, ABI, prompts, utilities
+  contracts/   OPMRegistry.sol + Hardhat config, tests, deploy script
+  scanner/     AI agents, in-memory queue, Fileverse upload, report formatter
+  cli/         Ink-based terminal UI
+    commands/    push, install, audit, info, author-view, passthrough
+    components/  Header, StatusLine, RiskBadge, PackageCard, AuthorInfo
+    services/    contract, ens, osv, signature, chainpatrol, fileverse, avatar
 ```
 
-## Smart Contract
+## Environment Variables
 
-`OPMRegistry.sol` on Base Sepolia handles:
-- Package registration with ENS identity binding
-- Agent score submission (authorized agents only)
-- Fileverse report URI storage
-- Aggregate risk scoring + safest version lookup
-- Author reputation tracking
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPM_PRIVATE_KEY` | Yes | Author's Ethereum private key for signing |
+| `AGENT_PRIVATE_KEY` | Yes | Agent wallet key for contract gas on Base Sepolia |
+| `CONTRACT_ADDRESS` | Yes | Deployed OPMRegistry contract address |
+| `OPENAI_API_KEY` | * | OpenAI API key (auto-selects gpt-4.1 variants) |
+| `OPENROUTER_API_KEY` | * | OpenRouter API key (multi-model: Claude, Gemini, DeepSeek) |
+| `CHAINPATROL_API_KEY` | Yes | ChainPatrol API key for blocklist checks |
+| `BASE_SEPOLIA_RPC_URL` | No | Base Sepolia RPC (default: https://sepolia.base.org) |
+| `ETH_MAINNET_RPC_URL` | No | Mainnet RPC for ENS (default: https://eth.llamarpc.com) |
+| `ETH_SEPOLIA_RPC_URL` | No | Sepolia RPC for ENS (default: public endpoint) |
+| `FILEVERSE_API_KEY` | Yes | Fileverse API key from ddocs.new Developer Mode |
+| `FILEVERSE_API_URL` | No | Fileverse local API URL (default: http://localhost:8001) |
+| `NPM_TOKEN` | No | npm automation token (alternative to `--token` flag) |
 
-## AI Agents
+\* One of `OPENAI_API_KEY` or `OPENROUTER_API_KEY` is required for AI scanning.
 
-Three models scan every package in parallel via OpenRouter:
-- MiniMax M2.5
-- GPT-4.1
-- Gemini 2.5 Flash
+## Run Contract Tests
 
-Each produces a structured JSON report with risk score, vulnerabilities, supply chain indicators, and version analysis.
-
-## Integrations
-
-- **ENS**: On-chain author identity binding via ENS/Basenames
-- **Fileverse**: Encrypted dDocs for JSON audit trail, synced to blockchain
-- **ChainPatrol**: Fallback blocklist for packages not in the registry
-- **Base Sepolia**: Smart contract deployment chain
+```bash
+cd packages/contracts && npx hardhat test
+```
 
 ## License
 
