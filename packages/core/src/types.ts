@@ -105,3 +105,40 @@ export interface ChainPatrolResult {
   status: 'UNKNOWN' | 'ALLOWED' | 'BLOCKED';
   source: string;
 }
+
+export interface CheckDepResult {
+  name: string;
+  version: string;
+  typosquat: { likelyTarget: string; confidence: string; reason: string } | null;
+  cveCount: number;
+  cveCritical: number;
+  cveHigh: number;
+  cveIds: string[];
+  fixVersion: string | null;
+  onChainScore: number | null;
+}
+
+export interface CheckAgentResult {
+  agentId: string;
+  model: string;
+  intelligence: number;
+  coding: number;
+  findings: Array<{
+    package: string;
+    issue: string;
+    severity: string;
+    explanation: string;
+    suggested_replacement: string | null;
+    suggested_version: string | null;
+  }>;
+  overall: string;
+  riskScore: number;
+}
+
+export interface CheckReport {
+  project: string;
+  timestamp: string;
+  totalDeps: number;
+  deps: CheckDepResult[];
+  agents: CheckAgentResult[];
+}

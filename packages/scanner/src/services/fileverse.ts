@@ -1,6 +1,6 @@
-import type { ScanReport } from '@opm/core';
+import type { ScanReport, CheckReport } from '@opm/core';
 import { getEnvOrDefault, FILEVERSE_DEFAULT_URL } from '@opm/core';
-import { formatReportAsMarkdown } from './report-formatter';
+import { formatReportAsMarkdown, formatCheckReportAsMarkdown } from './report-formatter';
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 60_000;
 
@@ -52,6 +52,27 @@ async function pollForSync(apiUrl: string, apiKey: string, ddocId: string): Prom
   }
 
   return `https://ddocs.new/pending/${ddocId}`;
+}
+
+export async function uploadCheckReportToFileverse(report: CheckReport): Promise<string> {
+  const { apiUrl, apiKey } = getApiConfig();
+  const title = `OPM Check Report: ${report.project} (${report.totalDeps} deps)`;
+  const content = formatCheckReportAsMarkdown(report);
+
+  const res = await fetch(`${apiUrl}/api/ddocs?apiKey=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, content }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Fileverse create failed (${res.status}): ${body}`);
+  }
+
+  const { data } = await res.json() as { data: { ddocId: string; syncStatus: string; link?: string } };
+  if (data.syncStatus === 'synced' && data.link) return data.link;
+  return pollForSync(apiUrl, apiKey, data.ddocId);
 }
 
 export async function fetchReportFromFileverse(reportURI: string): Promise<ScanReport | null> {

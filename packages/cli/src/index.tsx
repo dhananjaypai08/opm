@@ -6,6 +6,8 @@ import { InstallCommand } from './commands/install';
 import { AuditCommand } from './commands/audit';
 import { InfoCommand } from './commands/info';
 import { AuthorViewCommand } from './commands/author-view';
+import { CheckCommand } from './commands/check';
+import { FixCommand } from './commands/fix';
 import { PassthroughCommand } from './commands/passthrough';
 import { Header } from './components/Header';
 
@@ -56,6 +58,10 @@ function App() {
       if (!name) return <Help />;
       return <InfoCommand packageName={name} version={version} />;
     }
+    case 'check':
+      return <CheckCommand />;
+    case 'fix':
+      return <FixCommand />;
     case 'whois': {
       if (!rest[0]) return <Help />;
       const ensArg = rest[0].endsWith('.eth') ? rest[0] : `${rest[0]}.eth`;
@@ -77,6 +83,8 @@ function Help() {
         <Text color="cyan" bold>Security commands:</Text>
         <Text>  opm push [--token t] [--otp c]  Sign, scan, publish, register</Text>
         <Text>  opm install [pkg]       Install with on-chain security verification</Text>
+        <Text>  opm check               Scan all deps: typosquats, CVEs, AI analysis</Text>
+        <Text>  opm fix                 Auto-fix typosquats and vulnerable versions</Text>
         <Text>  opm audit               Scan all deps against on-chain security data</Text>
         <Text>  opm info {'<pkg>'}            Show on-chain security info for a package</Text>
         <Text>  opm view {'<name.eth>'}      Show author profile, packages, and risk scores</Text>

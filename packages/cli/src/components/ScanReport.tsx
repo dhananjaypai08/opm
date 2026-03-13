@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { ScanReport as ScanReportType } from '@opm/core';
+import { Hyperlink } from './Hyperlink';
 
 interface ScanReportProps {
   report?: ScanReportType | null;
@@ -21,10 +22,10 @@ export function ScanReport({ report, reportURI }: ScanReportProps) {
   return (
     <Box flexDirection="column" marginLeft={2}>
       <Text bold color="white"> Scan Report</Text>
-      {reportURI && (
+      {reportURI && !reportURI.startsWith('local://') && (
         <Box>
           <Text color="gray">  Link: </Text>
-          <Text color="blue" underline>{reportURI}</Text>
+          <Hyperlink url={reportURI} />
         </Box>
       )}
       {report && (

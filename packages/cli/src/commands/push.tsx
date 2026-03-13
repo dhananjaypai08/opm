@@ -5,6 +5,7 @@ import type { AgentEntry } from '@opm/core';
 import { Header } from '../components/Header';
 import { StatusLine, type Status } from '../components/StatusLine';
 import { RiskBadge } from '../components/RiskBadge';
+import { Hyperlink } from '../components/Hyperlink';
 import { computeChecksum, signChecksumAsync } from '../services/signature';
 import { resolveENSName } from '../services/ens';
 import { registerPackageOnChain } from '../services/contract';
@@ -321,7 +322,7 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
           </Box>
           {!result.reportURI.startsWith('local://') && (
             <Box marginLeft={2}>
-              <Text color="blue">{result.reportURI}</Text>
+              <Hyperlink url={result.reportURI} />
             </Box>
           )}
         </Box>

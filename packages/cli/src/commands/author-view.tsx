@@ -5,6 +5,7 @@ import type { AuthorProfile } from '@opm/core';
 import { Header } from '../components/Header';
 import { StatusLine } from '../components/StatusLine';
 import { RiskBadge } from '../components/RiskBadge';
+import { Hyperlink } from '../components/Hyperlink';
 import { resolveAddress, getENSTextRecords, type ENSProfile } from '../services/ens';
 import {
   getAuthorProfile,
@@ -225,7 +226,7 @@ export function AuthorViewCommand({ ensName }: AuthorViewProps) {
                     {pkg.reportURI && !pkg.reportURI.startsWith('local://') && (
                       <Box>
                         <Text color="gray">Report: </Text>
-                        <Text color="blue">{pkg.reportURI}</Text>
+                        <Hyperlink url={pkg.reportURI} />
                       </Box>
                     )}
                   </Box>

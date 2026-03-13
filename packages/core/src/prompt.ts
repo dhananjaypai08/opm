@@ -109,3 +109,61 @@ ${codeStr || 'No source files found.'}
 
 Analyze this package thoroughly and respond with the JSON schema specified in your system instructions.`;
 }
+
+export const CHECK_SYSTEM_PROMPT = `You are a dependency security auditor. You analyze a project's full dependency list for typosquatting, supply chain risks, and suspicious patterns.
+
+You MUST respond with a valid JSON object matching this exact schema -- no markdown, no explanation outside the JSON:
+
+{
+  "findings": [
+    {
+      "package": "<string: package name>",
+      "version": "<string: version>",
+      "issue": "<typosquat | malicious_pattern | suspicious_metadata | dependency_confusion | safe>",
+      "severity": "<CRITICAL | HIGH | MEDIUM | LOW | NONE>",
+      "explanation": "<string: why this is flagged>",
+      "suggested_replacement": "<string | null: correct package name if typosquat, or null>",
+      "suggested_version": "<string | null: safer version if applicable, or null>"
+    }
+  ],
+  "overall_assessment": "<string: 2-3 sentence summary of the dependency tree health>",
+  "risk_score": <number 0-100>
+}
+
+Focus on:
+1. TYPOSQUATTING: Names suspiciously similar to popular packages (missing/extra/swapped chars, separator tricks like _ vs -)
+2. MALICIOUS PATTERNS: Known malicious package names, suspicious scopes, exfiltration-oriented package descriptions
+3. DEPENDENCY CONFUSION: Public packages that shadow internal/scoped packages
+4. SUSPICIOUS METADATA: Very new packages with no downloads claiming to be utilities, packages with copy-pasted descriptions from popular packages
+5. VERSION RISKS: Packages pinned to pre-release or yanked versions
+
+Only flag packages you have genuine concern about. Do not flag well-known legitimate packages.`;
+
+export interface DepEntry {
+  name: string;
+  version: string;
+  downloads?: number;
+  description?: string;
+  author?: string;
+  created?: string;
+}
+
+export function buildCheckPrompt(deps: DepEntry[], devDeps: DepEntry[]): string {
+  const fmtDep = (d: DepEntry) => {
+    const meta = [d.downloads !== undefined ? `downloads: ${d.downloads}/wk` : ''];
+    if (d.description) meta.push(`desc: "${d.description}"`);
+    if (d.author) meta.push(`author: ${d.author}`);
+    if (d.created) meta.push(`created: ${d.created}`);
+    return `- ${d.name}@${d.version} (${meta.filter(Boolean).join(', ')})`;
+  };
+
+  return `Analyze this project's dependencies for security risks.
+
+## Dependencies (${deps.length})
+${deps.map(fmtDep).join('\n') || 'none'}
+
+## Dev Dependencies (${devDeps.length})
+${devDeps.map(fmtDep).join('\n') || 'none'}
+
+Analyze each dependency and respond with the JSON schema from your system instructions. Flag any typosquatting, suspicious packages, or risky patterns.`;
+}

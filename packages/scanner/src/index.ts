@@ -4,10 +4,11 @@ export { enqueueScan } from './queue/memory-queue';
 export type { LocalScanContext } from './agents/base-agent';
 export { runAgent } from './agents/base-agent';
 export { getAgentConfigs } from './agents/agent-configs';
-export { callLLM, getLLMProvider } from './services/openrouter';
+export { callLLM, callLLMRaw, getLLMProvider } from './services/openrouter';
 export { fetchPackageData, extractMetadata, buildVersionHistory, fetchSourceFiles, extractLocalSourceFiles, buildLocalPackageData } from './services/npm-registry';
 export { submitScoreOnChain, setReportURIOnChain } from './services/contract-writer';
-export { uploadReportToFileverse, fetchReportFromFileverse } from './services/fileverse';
+export { uploadReportToFileverse, uploadCheckReportToFileverse, fetchReportFromFileverse } from './services/fileverse';
+export { formatCheckReportAsMarkdown } from './services/report-formatter';
 
 if (import.meta.main) {
   const [pkg, ver] = process.argv.slice(2);
