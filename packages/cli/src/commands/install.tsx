@@ -185,6 +185,9 @@ export function InstallCommand({ packageName, version }: InstallCommandProps) {
 
   const cveCounts = result ? categorizeCVEs(result.cves) : { critical: 0, high: 0, medium: 0, low: 0 };
   const severeCount = cveCounts.critical + cveCounts.high;
+  const suggestedUpgrade = result?.cves.length
+    ? getBestUpgradeVersion(result.cves, result.resolvedVersion)
+    : null;
 
   return (
     <Box flexDirection="column">
@@ -205,7 +208,7 @@ export function InstallCommand({ packageName, version }: InstallCommandProps) {
         <Box flexDirection="column" marginLeft={4}>
           {result.cves.slice(0, 5).map((cve) => {
             const sev = getOSVSeverity(cve);
-            const fix = getFixedVersion(cve);
+            const fix = getFixedVersion(cve, result.resolvedVersion);
             return (
               <Box key={cve.id} flexDirection="column">
                 <Box>
@@ -217,7 +220,7 @@ export function InstallCommand({ packageName, version }: InstallCommandProps) {
                 </Box>
                 {fix && (
                   <Box marginLeft={2}>
-                    <Text color="green">fixed in {fix}</Text>
+                    <Text color="green">upgrade to {fix}</Text>
                   </Box>
                 )}
               </Box>
@@ -302,9 +305,16 @@ export function InstallCommand({ packageName, version }: InstallCommandProps) {
               <Text color="yellow">⚠ Vulnerabilities detected — review before using in production</Text>
             </Box>
           )}
+          {suggestedUpgrade && suggestedUpgrade !== result.resolvedVersion && (
+            <Box marginLeft={2}>
+              <Text color="yellow">⚠ Upgrade to </Text>
+              <Text color="green" bold>{suggestedUpgrade}</Text>
+              <Text color="yellow"> to fix known CVEs</Text>
+            </Box>
+          )}
           {result.warning && result.safestVersion && (
             <Box marginLeft={2}>
-              <Text color="yellow">⚠ Consider using safest version: {result.safestVersion}</Text>
+              <Text color="yellow">⚠ Consider using safest on-chain version: {result.safestVersion}</Text>
             </Box>
           )}
         </Box>
@@ -314,6 +324,27 @@ export function InstallCommand({ packageName, version }: InstallCommandProps) {
       {done && <Text color="green" bold>Done.</Text>}
     </Box>
   );
+}
+
+function getBestUpgradeVersion(cves: OSVVulnerability[], currentVersion: string): string | null {
+  let highest: string | null = null;
+  for (const cve of cves) {
+    const fix = getFixedVersion(cve, currentVersion);
+    if (fix && (!highest || compareSemver(fix, highest) > 0)) {
+      highest = fix;
+    }
+  }
+  return highest;
+}
+
+function compareSemver(a: string, b: string): number {
+  const pa = a.replace(/^v/, '').split('.').map(Number);
+  const pb = b.replace(/^v/, '').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
 }
 
 function getTargetPackages(name?: string, ver?: string): Array<{ name: string; version: string }> {

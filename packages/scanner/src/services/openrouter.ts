@@ -3,19 +3,37 @@ import type { AgentScanResult } from '@opm/core';
 import { validateScanResult, safeJsonParse } from '@opm/core';
 
 function getProvider(): { apiUrl: string; apiKey: string; kind: 'openai' | 'openrouter' } {
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) return { apiUrl: OPENAI_API_URL, apiKey: openaiKey, kind: 'openai' };
+  const forcedProvider = process.env.LLM_PROVIDER;
+  
+  if (forcedProvider === 'openrouter') {
+    const orKey = process.env.OPENROUTER_API_KEY;
+    if (!orKey) throw new Error('OPENROUTER_API_KEY required when LLM_PROVIDER=openrouter');
+    return { apiUrl: OPENROUTER_API_URL, apiKey: orKey, kind: 'openrouter' };
+  }
+  
+  if (forcedProvider === 'openai') {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey) throw new Error('OPENAI_API_KEY required when LLM_PROVIDER=openai');
+    return { apiUrl: OPENAI_API_URL, apiKey: openaiKey, kind: 'openai' };
+  }
 
   const orKey = process.env.OPENROUTER_API_KEY;
   if (orKey) return { apiUrl: OPENROUTER_API_URL, apiKey: orKey, kind: 'openrouter' };
 
-  throw new Error('Set OPENAI_API_KEY or OPENROUTER_API_KEY');
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) return { apiUrl: OPENAI_API_URL, apiKey: openaiKey, kind: 'openai' };
+
+  throw new Error('Set OPENROUTER_API_KEY (for diverse models) or OPENAI_API_KEY');
 }
 
 export function getLLMProvider(): 'openai' | 'openrouter' {
-  if (process.env.OPENAI_API_KEY) return 'openai';
+  const forcedProvider = process.env.LLM_PROVIDER;
+  if (forcedProvider === 'openrouter') return 'openrouter';
+  if (forcedProvider === 'openai') return 'openai';
+  
   if (process.env.OPENROUTER_API_KEY) return 'openrouter';
-  throw new Error('Set OPENAI_API_KEY or OPENROUTER_API_KEY');
+  if (process.env.OPENAI_API_KEY) return 'openai';
+  throw new Error('Set OPENROUTER_API_KEY (for diverse models) or OPENAI_API_KEY');
 }
 
 export async function callLLM(

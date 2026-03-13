@@ -2,9 +2,9 @@ export const HIGH_RISK_THRESHOLD = 70;
 export const MEDIUM_RISK_THRESHOLD = 40;
 
 export const OPENROUTER_MODELS = {
-  agent1: 'minimax/minimax-m2.5',
-  agent2: 'openai/gpt-4.1',
-  agent3: 'google/gemini-3-flash-preview',
+  agent1: 'anthropic/claude-sonnet-4-20250514',
+  agent2: 'google/gemini-2.5-flash',
+  agent3: 'deepseek/deepseek-chat',
 } as const;
 
 export const OPENAI_MODELS = {

@@ -3,7 +3,8 @@ import { Box, Text } from 'ink';
 import { getEnvOrThrow, truncateAddress, classifyRisk } from '@opm/core';
 import type { AgentEntry } from '@opm/core';
 import { Header } from '../components/Header';
-import { StatusLine } from '../components/StatusLine';
+import { StatusLine, type Status } from '../components/StatusLine';
+import { RiskBadge } from '../components/RiskBadge';
 import { computeChecksum, signChecksumAsync } from '../services/signature';
 import { resolveENSName } from '../services/ens';
 import { registerPackageOnChain } from '../services/contract';
@@ -12,15 +13,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
-type StepStatus = 'pending' | 'running' | 'done' | 'error';
+type StepStatus = Status;
 
 interface Steps {
   pack: StepStatus;
   sign: StepStatus;
   ens: StepStatus;
+  scan: StepStatus;
   publish: StepStatus;
   register: StepStatus;
-  scan: StepStatus;
 }
 
 interface PushResult {
@@ -32,14 +33,17 @@ interface PushResult {
   npmError?: string;
   txHash?: string;
   riskScore?: number;
+  riskLevel?: string;
   reportURI?: string;
   agents?: AgentEntry[];
+  blocked?: boolean;
+  blockReason?: string;
 }
 
 export function PushCommand() {
   const [steps, setSteps] = useState<Steps>({
     pack: 'pending', sign: 'pending', ens: 'pending',
-    publish: 'pending', register: 'pending', scan: 'pending',
+    scan: 'pending', publish: 'pending', register: 'pending',
   });
   const [result, setResult] = useState<PushResult>({});
   const [error, setError] = useState<string | null>(null);
@@ -81,27 +85,83 @@ export function PushCommand() {
     setResult((r) => ({ ...r, ensName, address }));
     updateStep('ens', 'done');
 
+    updateStep('scan', 'running');
+    let scanPassed = false;
+    try {
+      const scanResult = await enqueueScan(name, version, (msg) =>
+        setScanLogs((prev) => [...prev.slice(-8), msg]),
+        { tarballPath: tarballFile, pkgJsonPath },
+      );
+
+      const riskScore = scanResult.report.aggregate_risk_score;
+      const riskLevel = classifyRisk(riskScore);
+
+      setResult((r) => ({
+        ...r,
+        riskScore,
+        riskLevel,
+        reportURI: scanResult.reportURI,
+        agents: scanResult.report.agents,
+      }));
+
+      if (riskLevel === 'CRITICAL' || riskScore >= 80) {
+        setResult((r) => ({
+          ...r,
+          blocked: true,
+          blockReason: `Risk score ${riskScore}/100 (${riskLevel}) — too dangerous to publish`,
+        }));
+        updateStep('scan', 'error');
+        updateStep('publish', 'blocked');
+        updateStep('register', 'blocked');
+        if (fs.existsSync(tarballFile)) fs.unlinkSync(tarballFile);
+        return;
+      }
+
+      scanPassed = true;
+      updateStep('scan', 'done');
+    } catch (err: any) {
+      setScanLogs((prev) => [...prev, `Scan: ${err?.message || 'failed'}`]);
+      scanPassed = true;
+      updateStep('scan', 'error');
+    }
+
+    if (!scanPassed) return;
+
     const originalPkgJsonContent = fs.readFileSync(pkgJsonPath, 'utf-8');
     pkgJson.opm = { signature, author: address, ensName, checksum };
     fs.writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2));
 
     updateStep('publish', 'running');
-    try {
-      execSync('npm publish --access public', { encoding: 'utf-8', stdio: 'pipe' });
-      setResult((r) => ({
-        ...r,
-        npmUrl: `https://www.npmjs.com/package/${name}/v/${version}`,
-      }));
-    } catch (err: any) {
-      const msg = err?.stderr || err?.stdout || err?.message || '';
-      const lines = msg.split('\n').filter((l: string) => l.trim().length > 0);
-      const errorLine = lines.find((l: string) =>
-        (l.includes('npm error') || l.includes('ERR!')) && !l.includes('npm notice'),
-      );
-      const reason = errorLine
-        ? errorLine.replace(/^npm\s+(error|ERR!)\s*/i, '').trim()
-        : 'publish failed (version may already exist)';
-      setResult((r) => ({ ...r, npmError: reason.slice(0, 120) }));
+    const isNpmLoggedIn = (() => {
+      try { execSync('npm whoami', { encoding: 'utf-8', stdio: 'pipe' }); return true; } catch { return false; }
+    })();
+    if (isNpmLoggedIn) {
+      try {
+        execSync('npm publish --access public', { encoding: 'utf-8', stdio: 'pipe' });
+        setResult((r) => ({
+          ...r,
+          npmUrl: `https://www.npmjs.com/package/${name}/v/${version}`,
+        }));
+      } catch (err: any) {
+        const msg = err?.stderr || err?.stdout || err?.message || '';
+        let reason = 'version may already exist';
+        if (msg.includes('Two-factor') || msg.includes('2fa')) {
+          reason = '2FA required — run: npm publish --otp=<code>';
+        } else if (msg.includes('E403')) {
+          reason = 'forbidden — check npm account permissions';
+        } else if (msg.includes('E402')) {
+          reason = 'payment required — scoped packages need npm Pro';
+        } else {
+          const lines = msg.split('\n').filter((l: string) => l.trim().length > 0);
+          const errorLine = lines.find((l: string) =>
+            (l.includes('npm error') || l.includes('ERR!')) && !l.includes('npm notice'),
+          );
+          if (errorLine) reason = errorLine.replace(/^npm\s+(error|ERR!)\s*/i, '').trim();
+        }
+        setResult((r) => ({ ...r, npmError: reason.slice(0, 120) }));
+      }
+    } else {
+      setResult((r) => ({ ...r, npmError: 'skipped — run npm login first' }));
     }
     updateStep('publish', 'done');
 
@@ -116,23 +176,6 @@ export function PushCommand() {
       setScanLogs((prev) => [...prev, `Registration: ${err?.shortMessage || err?.message || 'failed'}`]);
     }
     updateStep('register', 'done');
-
-    updateStep('scan', 'running');
-    try {
-      const scanResult = await enqueueScan(name, version, (msg) =>
-        setScanLogs((prev) => [...prev.slice(-8), msg]),
-        { tarballPath: tarballFile, pkgJsonPath },
-      );
-      setResult((r) => ({
-        ...r,
-        riskScore: scanResult.report.aggregate_risk_score,
-        reportURI: scanResult.reportURI,
-        agents: scanResult.report.agents,
-      }));
-    } catch (err: any) {
-      setScanLogs((prev) => [...prev, `Scan: ${err?.message || 'failed'}`]);
-    }
-    updateStep('scan', 'done');
 
     if (fs.existsSync(tarballFile)) fs.unlinkSync(tarballFile);
   }
@@ -157,21 +200,10 @@ export function PushCommand() {
           )}
         </Box>
       )}
-      <StatusLine label="Publish to npm" status={steps.publish} />
-      {steps.publish === 'done' && (
-        <Box marginLeft={4}>
-          {result.npmUrl ? (
-            <Text color="green">✓ Published → <Text color="blue">{result.npmUrl}</Text></Text>
-          ) : result.npmError ? (
-            <Text color="yellow">⚠ {result.npmError}</Text>
-          ) : null}
-        </Box>
-      )}
-      <StatusLine label="Register on-chain" status={steps.register} detail={result.txHash?.slice(0, 16)} />
       <StatusLine label="Security scan (3 agents)" status={steps.scan} />
 
       {scanLogs.length > 0 && (
-        <Box flexDirection="column" marginLeft={2} marginTop={1}>
+        <Box flexDirection="column" marginLeft={4}>
           {scanLogs.map((log, i) => (
             <Text key={i} color="gray">{log}</Text>
           ))}
@@ -193,7 +225,7 @@ export function PushCommand() {
                 <Text color="gray"> {agent.result.risk_level}</Text>
               </Box>
               <Box marginLeft={2}>
-                <Text color="gray" wrap="wrap">{agent.result.reasoning.slice(0, 120)}</Text>
+                <Text color="gray" wrap="wrap">{agent.result.reasoning.slice(0, 200)}</Text>
               </Box>
               {agent.result.vulnerabilities.length > 0 && (
                 <Box marginLeft={2}>
@@ -210,15 +242,35 @@ export function PushCommand() {
           <Text color="gray">────────────────────────────────────────</Text>
           <Box>
             <Text color="white" bold> Aggregate Risk: </Text>
-            <Text color={riskColor(result.riskScore)} bold>
-              {result.riskScore}/100 ({classifyRisk(result.riskScore)})
-            </Text>
+            <RiskBadge level={classifyRisk(result.riskScore)} score={result.riskScore} />
           </Box>
         </Box>
       )}
 
+      {result.blocked && (
+        <Box marginLeft={2} marginTop={1}>
+          <Text color="red" bold>✗ BLOCKED: {result.blockReason}</Text>
+        </Box>
+      )}
+
+      {!result.blocked && (
+        <>
+          <StatusLine label="Publish to npm" status={steps.publish} />
+          {steps.publish === 'done' && (
+            <Box marginLeft={4}>
+              {result.npmUrl ? (
+                <Text color="green">✓ <Text color="blue">{result.npmUrl}</Text></Text>
+              ) : result.npmError ? (
+                <Text color="yellow">⚠ {result.npmError}</Text>
+              ) : null}
+            </Box>
+          )}
+          <StatusLine label="Register on-chain" status={steps.register} detail={result.txHash?.slice(0, 16)} />
+        </>
+      )}
+
       {result.reportURI && (
-        <Box flexDirection="column" marginLeft={1}>
+        <Box flexDirection="column" marginLeft={1} marginTop={1}>
           <Box>
             <Text color="white" bold> Report: </Text>
             {result.reportURI.startsWith('local://') ? (

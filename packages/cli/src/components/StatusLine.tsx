@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 
-type Status = 'pending' | 'running' | 'done' | 'error' | 'skip';
+export type Status = 'pending' | 'running' | 'done' | 'error' | 'skip' | 'blocked';
 
 const STATUS_MAP: Record<Status, { icon: string; color: string }> = {
   pending: { icon: '○', color: 'gray' },
@@ -9,6 +9,7 @@ const STATUS_MAP: Record<Status, { icon: string; color: string }> = {
   done: { icon: '●', color: 'green' },
   error: { icon: '✖', color: 'red' },
   skip: { icon: '─', color: 'gray' },
+  blocked: { icon: '⊘', color: 'red' },
 };
 
 interface StatusLineProps {

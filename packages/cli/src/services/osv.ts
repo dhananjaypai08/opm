@@ -107,13 +107,35 @@ function computeCVSSv3BaseScore(vector: string): number | null {
   return Math.ceil(raw * 10) / 10;
 }
 
-export function getFixedVersion(vuln: OSVVulnerability): string | null {
+export function getFixedVersion(vuln: OSVVulnerability, forVersion?: string): string | null {
+  const majorMinor = forVersion ? getMajorMinor(forVersion) : null;
+  let bestMatch: string | null = null;
+  let anyFix: string | null = null;
+
   for (const aff of vuln.affected || []) {
     for (const range of aff.ranges || []) {
+      let introduced: string | null = null;
+      let fixed: string | null = null;
       for (const event of range.events || []) {
-        if (event.fixed) return event.fixed;
+        if (event.introduced) introduced = event.introduced;
+        if (event.fixed) fixed = event.fixed;
+      }
+      if (!fixed) continue;
+      if (!anyFix) anyFix = fixed;
+
+      if (majorMinor && introduced) {
+        const introMM = getMajorMinor(introduced);
+        if (introMM === majorMinor) {
+          bestMatch = fixed;
+        }
       }
     }
   }
-  return null;
+
+  return bestMatch || anyFix;
+}
+
+function getMajorMinor(version: string): string {
+  const parts = version.replace(/^v/, '').split('.');
+  return parts.length >= 2 ? `${parts[0]}.${parts[1]}` : parts[0];
 }

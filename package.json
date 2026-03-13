@@ -1,7 +1,7 @@
 {
-  "name": "opm",
+  "name": "opmsec",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "bin": {
     "opm": "packages/cli/src/index.tsx"
   },
@@ -17,12 +17,15 @@
     "scan": "bun run packages/scanner/src/index.ts"
   },
   "dependencies": {
+    "@ensdomains/ensjs": "^4.2.2",
     "@types/react": "^18.3.28",
     "chalk": "^5.4.0",
     "ethers": "^6.13.0",
     "ink": "^5.2.1",
     "react": "^18.3.1",
-    "react-devtools-core": "^5.3.2"
+    "react-devtools-core": "^5.3.2",
+    "terminal-image": "^4.2.0",
+    "viem": "^2.47.2"
   },
   "devDependencies": {
     "bun-types": "latest"
