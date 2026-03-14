@@ -40,4 +40,8 @@ OPM combines four layers of defense:
 
 ## Architecture Overview
 
-OPM implements a domain-specific instantiation of the [ERC-8004 (Trustless Agents)](https://eips.ethereum.org/EIPS/eip-8004) pattern: agents hold on-chain identities, submit structured reputation signals (risk scores + reasoning), and attach off-chain validation evidence as Fileverse report URIs. Consumers invoking `opm install` query the registry, verify signatures, cross-reference OSV, and enforce configurable risk thresholds before permitting installation.
+<Frame>
+  <img src="/system-design.png" alt="OPM System Design" />
+</Frame>
+
+OPM implements the [ERC-8004 (Trustless Agents)](https://eips.ethereum.org/EIPS/eip-8004) pattern: agents hold on-chain identities, submit risk scores with reasoning, and attach Fileverse report URIs as validation evidence. Consumers querying `opm install` verify signatures, cross-reference OSV, and enforce risk thresholds before installation.

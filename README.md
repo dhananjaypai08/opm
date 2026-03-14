@@ -2,354 +2,143 @@
 
 [![npm](https://img.shields.io/npm/v/opmsec)](https://www.npmjs.com/package/opmsec)
 [![GitHub](https://img.shields.io/github/stars/dhananjaypai08/opm)](https://github.com/dhananjaypai08/opm)
-[![Contract](https://img.shields.io/badge/Base%20Sepolia-0x8A6a...1E85-blue)](https://sepolia.basescan.org/address/0x16684391fc9bf48246B08Afe16d1a57BFa181d48)
+[![Contract](https://img.shields.io/badge/Base%20Sepolia-0x1668...1d48-blue)](https://sepolia.basescan.org/address/0x16684391fc9bf48246B08Afe16d1a57BFa181d48)
 
-OPM is a security-hardened CLI wrapper around npm that introduces cryptographic packagepackage signing, multi-agent AI threat analysis, on-chain audit registries, and decentralized report storage to the JavaScript dependency supply chain. The CLI is built on Bun and uses Ink (React for terminals) for its interface, while all underlying package operations (install, publish, pack) delegate to npm via subprocess invocation. Its on-chain registry architecture implements a domain-specific instantiation of the [ERC-8004 (Trustless Agents)](https://eips.ethereum.org/EIPS/eip-8004) pattern, where autonomous AI agents submit structured reputation signals and validation evidence to chain-resident registries, enabling trust establishment across organizational boundaries without prior coordination.
+OPM is a drop-in npm replacement that adds **cryptographic signing**, **multi-agent AI security scanning**, **on-chain audit registries**, and **zero-knowledge agent verification** to the JavaScript supply chain.
 
-OPM supports **permissionless agent registration** — anyone can onboard their own security agent by proving 100% accuracy on a labeled benchmark suite via zero-knowledge proofs, with the proof hash stored immutably on-chain. Every on-chain transaction (agent score submissions, package registrations, agent registrations) surfaces as a clickable [BaseScan](https://sepolia.basescan.org) link directly in the terminal UI.
+Every package publish is scanned by 3 AI agents in parallel. Risk scores are submitted on-chain. Audit reports are stored encrypted on IPFS via Fileverse. Install-time checks verify signatures, query CVEs, and enforce risk thresholds — all from the terminal.
 
-Package metadata (version, checksum, Fileverse content hash, risk score, signature) is mapped to **ENS text records** on the author's name, enabling decentralized package discovery via `opm.*` record keys. Authors can create per-package ENS subnames (e.g. `express.djpai.eth`) for namespaced resolution.
+## System Design
 
-## System Overview
+![OPM System Design](docs/system-design.png)
 
-OPM interposes a verification pipeline between the developer and the npm registry. Package authors sign tarballs with ECDSA keys derived from Ethereum wallets. Upon publish, three heterogeneous AI models conduct parallel static analysis of source code, dependency metadata, and version history. Each agent submits a structured risk assessment to the `OPMRegistry` smart contract deployed on Base Sepolia, following the same identity-reputation-validation triad defined by ERC-8004: agents hold on-chain identities (authorized wallets with ENS binding), submit structured reputation signals (`riskScore` + `reasoning` per package version, analogous to ERC-8004's `giveFeedback`), and attach off-chain validation evidence as Fileverse report URIs (analogous to ERC-8004's `feedbackURI`/`responseURI`). The formatted audit report is encrypted and persisted to Fileverse dDocs. Consumers invoking `opm install` query this on-chain registry, verify signatures against checksums, cross-reference the OSV vulnerability database, and enforce configurable risk thresholds before permitting installation.
-
-### Threat Model
-
-OPM addresses the following attack surfaces:
-
-- **Supply chain injection**: Malicious postinstall scripts, obfuscated payloads, environment variable exfiltration, and runtime code generation detected by AI agents.
-- **Typosquatting**: Package names are compared against npm registry search results and download-count differentials. AI agents independently assess name similarity to known packages.
-- **Dependency confusion**: Scoped versus unscoped name conflicts and internal package shadowing are surfaced during `opm check`.
-- **Silent maintainer takeover**: Version history analysis detects sudden dependency graph mutations, new maintainer additions, and anomalous size deltas between releases.
-- **Known vulnerability exploitation**: Real-time CVE and GHSA data from the Open Source Vulnerabilities (OSV) API is integrated into install-time blocking and upgrade recommendations, with CVSS v3 base score computation for severity classification.
-- **Malicious / spamming agents**: Permissionless agent registration requires passing a 10-case benchmark suite with 100% accuracy, verified via zero-knowledge proofs, preventing unqualified agents from polluting the on-chain risk registry.
-
-### Data Flow
-
-```
-opm push
-  |
-  +-- Compute SHA-256 checksum over packed tarball
-  +-- Sign checksum with author's Ethereum private key (ECDSA secp256k1)
-  +-- Resolve author ENS identity (Sepolia, Mainnet fallback)
-  +-- Dispatch 3+ AI agents in parallel (permissionless agents included)
-  |     +-- Each agent: static analysis, risk scoring (0-100), structured JSON output
-  |     +-- Agent wallets submit scores to OPMRegistry.submitScore()
-  |     +-- Aggregate risk computed; publish blocked if score >= 80
-  |     +-- BaseScan tx links shown for every score submission
-  +-- Upload formatted markdown report to Fileverse dDocs (encrypted, on-chain synced)
-  +-- Publish tarball to npm (automation token or OTP for 2FA)
-  +-- Register package metadata on OPMRegistry.registerPackage()
-  |     +-- Stores: checksum, signature, ENS name, report URI
-  |     +-- BaseScan tx link + contract link shown in terminal
-  +-- Set report URI on-chain via OPMRegistry.setReportURI()
-  +-- Write ENS text records (opm.version, opm.checksum, opm.fileverse, opm.risk_score, opm.packages)
-  |     +-- Multicall batching when resolver supports it
-  |     +-- Per-package records: opm.pkg.<name>.version, opm.pkg.<name>.fileverse
-  |     +-- Subname creation: <package>.<author>.eth (if parent name is owned)
-  |     +-- Etherscan tx link shown for ENS record writes
-
-opm register-agent --name <name> --model <model>
-  |
-  +-- Validate agent configuration and environment
-  +-- Generate ZK commitment over expected benchmark outputs
-  +-- Run candidate agent against 10 labeled security test cases
-  |     +-- Categories: clean, typosquat, malicious, CVE, obfuscated, exfiltration, dependency confusion
-  |     +-- Each case evaluated against expected risk level and score range
-  +-- Generate zero-knowledge proof of accuracy
-  |     +-- Hash commitment scheme: hash(salt, expected) → commitment
-  |     +-- Proof: hash(commitment, result_hash, accuracy_flag, salt)
-  |     +-- Proves 100% accuracy without revealing test data or individual results
-  +-- Verify ZK proof integrity
-  +-- Register agent on OPMRegistry.registerAgent() if 100% accuracy
-  |     +-- Stores: name, model, systemPromptHash, proofHash on-chain
-  |     +-- Auto-authorizes agent for submitScore and setReportURI
-  +-- Show BaseScan tx link and contract link
-```
-
-## Prerequisites
-
-- [Bun](https://bun.sh) >= 1.2
-- Node.js >= 20
-- Ethereum wallet funded with Base Sepolia ETH (required for gas during `opm push`)
-
-## Installation
+## Quick Start
 
 ```bash
+# Install globally
+npm i -g opmsec
+
+# Or clone and link
 git clone https://github.com/dhananjaypai08/opm.git && cd opm
 cp .env.example .env
-bun install
-bun link
+bun install && bun link
 ```
-
-Or install from npm:
-
-```bash
-npm i -g opmsec
-```
-
-The `bun link` command registers `opm` as a globally available CLI binary.
-
-## Smart Contract Deployment
-
-```bash
-cd packages/contracts
-npm install
-npx hardhat compile
-npx hardhat run scripts/deploy.ts --network baseSepolia
-```
-
-Record the deployed contract address and set it as `CONTRACT_ADDRESS` in `.env`, or rely on the default address hardcoded in `packages/core/src/constants.ts`.
-
-The contract is live on Base Sepolia: [`0x16684391fc9bf48246B08Afe16d1a57BFa181d48`](https://sepolia.basescan.org/address/0x16684391fc9bf48246B08Afe16d1a57BFa181d48)
-
-## Fileverse dDocs Configuration
-
-OPM persists AI scan reports as encrypted, on-chain-synced documents via the Fileverse dDocs protocol.
-
-1. Navigate to [ddocs.new](https://ddocs.new), open Settings, enable Developer Mode, and generate an API key.
-2. Set `FILEVERSE_API_KEY` in `.env`.
-3. Start the local Fileverse API server:
-
-```bash
-npx @fileverse/api --apiKey <YOUR_API_KEY>
-```
-
-The server binds to `http://localhost:8001` by default. This is configurable via `FILEVERSE_API_URL`.
 
 ## Commands
 
-### Security Commands
-
-| Command | Description |
+| Command | What it does |
 |---------|-------------|
-| `opm push` | Sign, scan, publish to npm, register on-chain, write ENS records |
-| `opm push --token <token>` | Publish using an npm automation token (bypasses 2FA) |
-| `opm push --otp <code>` | Publish with a one-time 2FA code |
-| `opm install <pkg>[@ver]` | Install with signature verification, CVE checks, and on-chain risk gating |
-| `opm install` | Verify all dependencies in package.json (bulk scan mode) |
-| `opm check` | Scan all dependencies for typosquats, CVEs, and AI-detected risks |
-| `opm fix` | Auto-correct typosquatted names and upgrade vulnerable versions |
-| `opm audit` | Audit all dependencies against on-chain and CVE data |
-| `opm info <pkg>` | Display on-chain security metadata + ENS records for a package |
-| `opm view <name.eth>` | Display ENS author profile, OPM records, and published packages |
-| `opm whois <name>` | ENS identity lookup (appends `.eth` if omitted) |
+| `opm push` | Sign, scan with 3 AI agents, publish to npm, register on-chain, write ENS records |
+| `opm install <pkg>` | Verify signature, check CVEs, query on-chain risk, then install |
+| `opm install` | Bulk scan all package.json deps with ENS resolution and auto-bumping |
+| `opm check` | Scan deps for typosquats, CVEs, and AI-detected risks |
+| `opm fix` | Auto-patch typosquats and upgrade vulnerable versions |
+| `opm info <pkg>` | On-chain metadata, ENS records, audit report, CVEs |
+| `opm view <name.eth>` | Author profile, reputation, published packages |
+| `opm register-agent` | Onboard a new AI agent with ZK-verified benchmarks |
 
-### Agent Commands
+Standard npm commands (`init`, `run`, `test`, `build`, `start`, etc.) pass through transparently.
 
-| Command | Description |
-|---------|-------------|
-| `opm register-agent --name <n> --model <m>` | Register a new security agent with ZK-verified benchmarks |
-| `opm register-agent --system-prompt <p>` | Optional custom system prompt (defaults to OPM security auditor) |
+## How It Works
 
-### npm Passthrough
+### `opm push`
 
-All standard npm commands are forwarded transparently:
+Pack tarball → SHA-256 checksum → ECDSA sign → resolve ENS → scan with 3 AI agents in parallel → weighted consensus → block if score ≥ 80 → publish to npm → register on-chain → upload report to Fileverse → write ENS text records → set IPFS contenthash from Fileverse contract.
 
-```
-opm init        opm run <script>    opm test
-opm start       opm build           opm uninstall <pkg>
-opm outdated    opm update          opm list
-opm link        opm pack
-```
+### `opm install`
 
-Aliases: `i`, `add` map to `install`; `rm` maps to `uninstall`; `ls` maps to `list`.
+Parse ENS version (e.g. `pkg@name.eth`) → resolve author on-chain → get safest version → check CVEs → verify checksum + signature → ChainPatrol check → npm install. Auto-bumps to safer versions if CVEs or high risk detected.
 
-## Permissionless Agent Registration
+### `opm register-agent`
 
-OPM supports permissionless agent onboarding. Any developer can register their own security agent by providing a model and optionally a custom system prompt. Before registration, the agent must prove it can accurately classify security threats.
+Generate 10 benchmark cases → commit expected results → run candidate agent → compare actual vs expected → if 100% accuracy: generate ZK proof → register on-chain with proof hash. Agent becomes authorized to submit scores.
 
-### How It Works
+## AI Agents
 
-1. **Benchmark Suite**: 10 labeled test cases covering clean packages, typosquats, env exfiltration, obfuscated code, postinstall attacks, known CVEs, and dependency confusion.
-2. **Agent Evaluation**: The candidate agent runs against all 10 cases. Each response is evaluated against expected risk levels and score ranges.
-3. **ZK Proof Generation**: A zero-knowledge proof is generated using a hash-commitment scheme:
-   - Expected outputs are committed: `hash(salt, expected_verdicts) → commitment`
-   - Agent outputs are hashed: `hash(salt, actual_verdicts) → result_hash`
-   - Proof binds everything: `hash(commitment, result_hash, accuracy_flag, salt) → proof`
-   - Only a binary pass/fail is disclosed — test data and individual results remain hidden
-4. **On-chain Registration**: If accuracy is 100%, the agent's proof hash is stored on-chain via `OPMRegistry.registerAgent()`, and the agent is auto-authorized to submit scores.
+Three models scan every publish in parallel. Diversity reduces single-model blind spots.
 
-### Circom Circuit
-
-A reference circom circuit (`packages/contracts/circuits/accuracy_verifier.circom`) implements the verification logic for potential on-chain proof verification:
-
-```bash
-# Compile
-circom accuracy_verifier.circom --r1cs --wasm --sym -o build/
-
-# Trusted setup
-snarkjs groth16 setup build/accuracy_verifier.r1cs pot12_final.ptau build/accuracy_verifier_0000.zkey
-snarkjs zkey contribute build/accuracy_verifier_0000.zkey build/accuracy_verifier_final.zkey --name="opm-ceremony"
-
-# Export Solidity verifier (for on-chain verification)
-snarkjs zkey export solidityverifier build/accuracy_verifier_final.zkey contracts/AccuracyVerifier.sol
-```
-
-## AI Agent Architecture
-
-Three language models evaluate every package publish in parallel. Model diversity is enforced to reduce single-model blind spots and improve consensus reliability. Additional agents can be registered permissionlessly.
-
-| Agent | OpenRouter (preferred) | OpenAI (fallback) |
-|-------|----------------------|-------------------|
+| Agent | Model (OpenRouter) | Fallback (OpenAI) |
+|-------|-------------------|-------------------|
 | agent-1 | Claude Sonnet 4 | GPT-4.1 |
 | agent-2 | Gemini 2.5 Flash | GPT-4.1 Mini |
 | agent-3 | DeepSeek Chat | GPT-4.1 Nano |
 
-When `OPENROUTER_API_KEY` is configured, OPM routes through OpenRouter for model diversity. Otherwise, it falls back to OpenAI variants via `OPENAI_API_KEY`. At least one key is required for `opm push`.
+Scores are weighted by model intelligence + coding index from the Artificial Analysis API. Anyone can register additional agents permissionlessly via ZK-verified benchmarks.
 
-Each agent produces a structured JSON assessment containing:
+## Smart Contract
 
-- **Risk score** (0-100) with categorical classification (LOW, MEDIUM, HIGH, CRITICAL)
-- **Vulnerability enumeration** with severity, category, file path, and evidence
-- **Supply chain indicators**: install scripts, native bindings, obfuscated code, network calls, filesystem access, process spawning, eval usage, environment variable access
-- **Version history analysis**: changelog risk, maintainer changes, dependency graph mutations
-- **Recommendation**: SAFE, CAUTION, WARN, or BLOCK
+`OPMRegistry.sol` on [Base Sepolia](https://sepolia.basescan.org/address/0x16684391fc9bf48246B08Afe16d1a57BFa181d48).
 
-Agent scores are weighted by model intelligence and coding indices sourced from the Artificial Analysis API, producing an intelligence-weighted aggregate risk score.
+| Function | What it does |
+|----------|-------------|
+| `registerPackage` | Store version checksum, signature, ENS binding |
+| `submitScore` | Agent submits risk score + reasoning |
+| `setReportURI` | Attach Fileverse report link |
+| `registerAgent` | Permissionless agent registration with ZK proof hash |
+| `getSafestVersion` | Lowest-risk version in lookback window |
+| `getPackageInfo` | Full metadata + aggregate score |
 
-## Smart Contract: OPMRegistry
+Every transaction surfaces as a clickable BaseScan link in the terminal.
 
-Solidity 0.8.20, deployed on [Base Sepolia](https://sepolia.basescan.org/address/0x16684391fc9bf48246B08Afe16d1a57BFa181d48). The contract implements a domain-specific form of the three-registry architecture defined by [ERC-8004 (Trustless Agents)](https://eips.ethereum.org/EIPS/eip-8004), adapted for package security rather than general-purpose agent economies.
+## ENS Integration
 
-### Key Functions
+Package metadata is written to ENS text records on the author's name:
 
-| Function | Access | Description |
-|----------|--------|-------------|
-| `registerPackage` | Public | Register a new package version with checksum, signature, and ENS binding |
-| `submitScore` | Authorized agents | Submit a risk score (0-100) and reasoning string for a package version |
-| `setReportURI` | Authorized agents | Attach a Fileverse report URI to a package version |
-| `registerAgent` | Public | Permissionless agent registration with ZK proof hash |
-| `revokeAgent` | Owner | Deactivate a registered agent |
-| `getAggregateScore` | View | Compute mean risk score across all agent submissions |
-| `getSafestVersion` | View | Return the lowest-risk version within a configurable lookback window |
-| `getScores` | View | Return all individual agent scores for a version |
-| `getPackageInfo` | View | Retrieve full metadata and aggregate score for a package version |
-| `getRegisteredAgent` | View | Retrieve registered agent details |
-| `getAgentCount` | View | Total number of registered agents |
+`url` · `opm.version` · `opm.checksum` · `opm.fileverse` · `opm.risk_score` · `opm.packages` · `opm.signature` · `opm.contract`
 
-### On-chain Activity
+Per-package records: `opm.pkg.<name>.version`, `opm.pkg.<name>.checksum`, etc.
 
-Every transaction is surfaced in the terminal UI with clickable BaseScan links:
+Contenthash is set to the Fileverse IPFS CID (read directly from the Fileverse Portal smart contract on-chain).
 
-- **Score submissions**: Each agent's `submitScore` tx → `https://sepolia.basescan.org/tx/{hash}`
-- **Package registration**: `registerPackage` tx → clickable link
-- **Agent registration**: `registerAgent` tx → clickable link
-- **Contract reference**: Direct link to the OPM Registry contract
-
-### Risk Thresholds
-
-| Threshold | Value | Effect |
-|-----------|-------|--------|
-| `HIGH_RISK_THRESHOLD` | 70 | Packages above this score trigger warnings |
-| `MEDIUM_RISK_THRESHOLD` | 40 | Packages above this score are flagged for caution |
-| Critical gate (CLI) | 80 | `opm push` blocks publication; `opm install` blocks installation |
-
-## Website
-
-Landing page built with Next.js + Tailwind CSS.
-
-```bash
-cd packages/web
-npm install
-npm run dev       # Development at http://localhost:3000
-npm run build     # Production build
-npm start         # Start production server
-```
-
-For Railway/Vercel deployment: set the root directory to `packages/web` and use `npm install && npm run build` as the build command.
-
-## Documentation (Mintlify)
-
-Full documentation is in the `docs/` directory, configured for [Mintlify](https://mintlify.com).
-
-### Setup
-
-```bash
-npm i -g mintlify
-cd docs
-mintlify dev
-```
-
-Opens at `http://localhost:3333`. The docs cover:
-
-- **Getting Started**: Introduction, Quickstart, Configuration
-- **Core Concepts**: Security Model, Multi-Agent Consensus, On-chain Registry, ZK Agent Verification
-- **CLI Reference**: All commands with usage, flags, and examples
-- **Smart Contract**: Functions, Events, Deployment
-- **Architecture**: Scanner engine, Agent system, Benchmark suite
-
-### Deploy to Mintlify
-
-Push your repo to GitHub and connect it to [Mintlify](https://mintlify.com/start) — it auto-deploys from the `docs/` directory.
+Install with ENS: `opm install express@djpai.eth` resolves the author, verifies they're registered, and installs the safest on-chain version.
 
 ## Project Structure
 
 ```
 packages/
-  core/             Shared types, constants, ABI, prompt schemas, model rankings, benchmarks
-  contracts/        OPMRegistry.sol, Hardhat config, deployment scripts, tests
-    circuits/       Circom ZK circuit for accuracy verification
-  scanner/          AI agent runner, LLM client, queue, Fileverse, benchmark runner, ZK verifier
-  cli/              Ink-based terminal UI
-    commands/       push, install, check, fix, audit, info, author-view, register-agent, passthrough
-    components/     Header, StatusLine, RiskBadge, Hyperlink, PackageCard, AuthorInfo, AgentScores
-    services/       contract, ens, ens-records, osv, signature, chainpatrol, fileverse, avatar, typosquat, version
-  web/              Next.js landing page (dark mode, Tailwind CSS)
-docs/               Mintlify documentation (mint.json + MDX pages)
+  core/         Types, constants, ABI, prompts, model rankings, benchmarks
+  contracts/    OPMRegistry.sol, Hardhat config, Circom ZK circuit
+  scanner/      AI agent runner, LLM client, Fileverse upload, ZK verifier
+  cli/          Ink terminal UI, commands, services
+  web/          Next.js landing page
+docs/           Mintlify documentation
 ```
 
 ## Environment Variables
 
-Client-side commands (`install`, `check`, `fix`, `audit`, `info`, `view`, `whois`) operate with zero configuration.
+**Required for `opm push`:**
 
-Author-side commands (`push`) require the following:
+| Variable | Purpose |
+|----------|---------|
+| `OPM_SIGNING_KEY` | Ethereum private key for package signing |
+| `AGENT_PRIVATE_KEY` | Agent wallet for on-chain score submission |
+| `OPENROUTER_API_KEY` or `OPENAI_API_KEY` | LLM access for AI agents |
+| `FILEVERSE_API_KEY` | Report storage ([ddocs.new](https://ddocs.new) → Settings → Developer Mode) |
 
-| Variable | Description |
-|----------|-------------|
-| `OPM_SIGNING_KEY` | Ethereum private key for ECDSA package signing |
-| `AGENT_PRIVATE_KEY` | Agent wallet private key (funds on-chain score submission gas) |
-| `NPM_TOKEN` | npm automation token (alternative to `--token` CLI flag) |
-| `OPENAI_API_KEY` | OpenAI API key; selects GPT-4.1 / Mini / Nano agents |
-| `OPENROUTER_API_KEY` | OpenRouter API key; enables Claude, Gemini, DeepSeek model diversity |
-| `FILEVERSE_API_KEY` | Fileverse API key (generate at ddocs.new, Settings, Developer Mode) |
-
-Agent registration (`register-agent`) requires:
-
-| Variable | Description |
-|----------|-------------|
-| `AGENT_PRIVATE_KEY` | Wallet that becomes the agent identity on-chain |
-| `OPENROUTER_API_KEY` or `OPENAI_API_KEY` | Required to run LLM benchmark calls |
-
-Optional overrides (defaults are compiled in):
+**Optional:**
 
 | Variable | Default |
 |----------|---------|
+| `NPM_TOKEN` | npm automation token |
 | `CONTRACT_ADDRESS` | `0x16684391fc9bf48246B08Afe16d1a57BFa181d48` |
-| `BASE_SEPOLIA_RPC_URL` | `https://sepolia.base.org` |
-| `CHAINPATROL_API_KEY` | Optional; enables blocklist checks |
-| `ARTIFICIAL_ANALYSIS_API_KEY` | Optional; enables intelligence-weighted scoring |
+| `CHAINPATROL_API_KEY` | Blocklist checks |
 
-## Testing
+Client commands (`install`, `check`, `info`, `view`) work with zero config.
 
-### Contract Tests
+## Fileverse Setup
 
 ```bash
-cd packages/contracts && npx hardhat test
+npx @fileverse/api --apiKey <YOUR_API_KEY>
 ```
 
-### Standalone Scanner
-
-```bash
-bun run scan -- <package-name> <version>
-```
+Runs at `http://localhost:8001`. Reports are encrypted, synced to IPFS, and the content hash is stored on the Fileverse Portal smart contract.
 
 ## Links
 
 - **npm**: [npmjs.com/package/opmsec](https://www.npmjs.com/package/opmsec)
 - **GitHub**: [github.com/dhananjaypai08/opm](https://github.com/dhananjaypai08/opm)
 - **Contract**: [BaseScan](https://sepolia.basescan.org/address/0x16684391fc9bf48246B08Afe16d1a57BFa181d48)
+- **Docs**: [Mintlify](https://mintlify.com)
 
 ## License
 
