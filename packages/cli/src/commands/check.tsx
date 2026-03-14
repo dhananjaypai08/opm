@@ -19,6 +19,7 @@ export function CheckCommand() {
   const [phase, setPhase] = useState<Phase>('scanning');
   const [report, setReport] = useState<CheckReport | null>(null);
   const [reportLink, setReportLink] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -120,10 +121,21 @@ export function CheckCommand() {
     setReport(checkReport);
 
     setPhase('upload');
-    try {
-      const uploadResult = await uploadCheckReportToFileverse(checkReport);
-      setReportLink(uploadResult.link);
-    } catch { /* no Fileverse key — skip */ }
+    if (!process.env.FILEVERSE_API_KEY) {
+      setUploadError('FILEVERSE_API_KEY not set');
+    } else {
+      try {
+        const uploadResult = await uploadCheckReportToFileverse(checkReport);
+        setReportLink(uploadResult.link);
+      } catch (e: any) {
+        const msg = String(e?.message || e);
+        if (msg.includes('fetch failed') || msg.includes('ECONNREFUSED')) {
+          setUploadError('Fileverse API not running — start with: npx @fileverse/api --apiKey <key>');
+        } else {
+          setUploadError(msg.length > 120 ? msg.slice(0, 120) + '...' : msg);
+        }
+      }
+    }
 
     setPhase('done');
   }
@@ -154,7 +166,8 @@ export function CheckCommand() {
 
       {(phase === 'upload' || phase === 'done') && (
         <StatusLine label="Upload report to Fileverse"
-          status={phase === 'upload' ? 'running' : reportLink ? 'done' : 'skip'} />
+          status={phase === 'upload' ? 'running' : reportLink ? 'done' : 'skip'}
+          detail={uploadError || undefined} />
       )}
 
       {phase === 'done' && report && (
