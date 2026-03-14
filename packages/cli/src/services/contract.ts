@@ -155,6 +155,38 @@ export async function getPackagesByAuthor(authorAddress: string): Promise<Author
   return results;
 }
 
+export async function registerAgentOnChain(
+  name: string,
+  model: string,
+  systemPromptHash: string,
+  proofHash: string,
+): Promise<string> {
+  const rpc = getEnvOrDefault('BASE_SEPOLIA_RPC_URL', BASE_SEPOLIA_RPC);
+  const provider = new ethers.JsonRpcProvider(rpc);
+  const wallet = new ethers.Wallet(getEnvOrThrow('AGENT_PRIVATE_KEY'), provider);
+  const contract = new ethers.Contract(getContractAddress(), OPM_REGISTRY_ABI, wallet);
+
+  const tx = await contract.registerAgent(
+    name,
+    model,
+    ethers.keccak256(ethers.toUtf8Bytes(systemPromptHash)),
+    ethers.keccak256(ethers.toUtf8Bytes(proofHash)),
+  );
+  const receipt = await tx.wait();
+  return receipt.hash;
+}
+
+export async function getRegisteredAgent(agentAddress: string): Promise<any> {
+  const contract = getReadContract();
+  return contract.getRegisteredAgent(agentAddress);
+}
+
+export async function getAgentCount(): Promise<number> {
+  const contract = getReadContract();
+  const count = await contract.getAgentCount();
+  return Number(count);
+}
+
 export async function getPackagesByAuthorDirect(
   authorAddress: string,
   knownPackageNames: string[],

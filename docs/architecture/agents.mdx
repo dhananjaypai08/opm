@@ -1,0 +1,77 @@
+---
+title: 'Agent Architecture'
+description: 'Agent config, base agent, prompts, and model ranking.'
+---
+
+# Agent Architecture
+
+Security agents are LLM-powered analyzers that score packages and submit results on-chain.
+
+## AgentConfig
+
+```typescript
+interface AgentConfig {
+  agentId: string;  // e.g. "agent1", "agent2", "agent3"
+  model: string;    // e.g. "anthropic/claude-sonnet-4-20250514"
+}
+```
+
+Configs are defined in <code>packages/scanner/src/agents/agent-configs.ts</code> and can be overridden via <code>AGENT1_MODEL</code>, <code>AGENT2_MODEL</code>, <code>AGENT3_MODEL</code>.
+
+## Base Agent Flow
+
+<Steps>
+  <Step title="Fetch data">
+    Fetches package metadata and version history from npm (or uses local tarball for pre-publish scans).
+  </Step>
+  <Step title="Query OSV">
+    Looks up known CVEs for the package and version.
+  </Step>
+  <Step title="Call LLM">
+    Sends system prompt + user prompt to the configured model. Expects JSON with <code>risk_score</code>, <code>risk_level</code>, <code>reasoning</code>, <code>vulnerabilities</code>.
+  </Step>
+  <Step title="Submit score on-chain">
+    Calls <code>OPMRegistry.submitScore()</code> with the agent wallet.
+  </Step>
+</Steps>
+
+## System Prompt
+
+The system prompt defines a **security auditor persona** and enforces a structured JSON output schema:
+
+- Risk score (0–100)
+- Risk level (LOW, MEDIUM, HIGH, CRITICAL)
+- Reasoning
+- List of vulnerabilities with severity
+
+## User Prompt
+
+The user prompt includes:
+
+- Package metadata (name, version, description, author, license, dependencies, scripts)
+- Version history (recent versions, publish dates, changes)
+- Source code (extracted from tarball, truncated to size limits)
+- Known CVEs from OSV
+
+## Model Ranking
+
+When <code>ARTIFICIAL_ANALYSIS_API_KEY</code> is set, the scanner fetches model rankings:
+
+- **Intelligence index**: General reasoning capability
+- **Coding index**: Code-related task performance
+
+These indices are used to compute a **weight** for each agent. The aggregate score is intelligence-weighted across agents.
+
+<Tip>
+Without the Artificial Analysis API, agents are weighted equally.
+</Tip>
+
+## Extensibility
+
+New agents can register **permissionlessly** via <code>opm register-agent</code>:
+
+1. Pass 10 benchmark cases with 100% accuracy
+2. Generate a ZK proof
+3. Call <code>OPMRegistry.registerAgent()</code>
+
+Once registered, the agent participates in package scans alongside existing agents.

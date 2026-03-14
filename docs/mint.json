@@ -1,0 +1,106 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "OPM Documentation",
+  "logo": {
+    "dark": "/favicon.svg",
+    "light": "/favicon.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#ffffff",
+    "light": "#ededed",
+    "dark": "#0a0a0a",
+    "background": {
+      "dark": "#0a0a0a"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Website",
+      "url": "https://opm.dev"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "GitHub",
+    "url": "https://github.com/dhananjaypai08/opm"
+  },
+  "tabs": [
+    {
+      "name": "CLI Reference",
+      "url": "cli"
+    },
+    {
+      "name": "Smart Contract",
+      "url": "contract"
+    },
+    {
+      "name": "Architecture",
+      "url": "architecture"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "BaseScan",
+      "icon": "cube",
+      "url": "https://sepolia.basescan.org/address/0x16684391fc9bf48246B08Afe16d1a57BFa181d48"
+    },
+    {
+      "name": "npm",
+      "icon": "npm",
+      "url": "https://www.npmjs.com/package/opmsec"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "configuration"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "concepts/security-model",
+        "concepts/multi-agent-consensus",
+        "concepts/on-chain-registry",
+        "concepts/zk-agent-verification"
+      ]
+    },
+    {
+      "group": "CLI Reference",
+      "pages": [
+        "cli/push",
+        "cli/install",
+        "cli/check",
+        "cli/fix",
+        "cli/audit",
+        "cli/info",
+        "cli/view",
+        "cli/register-agent"
+      ]
+    },
+    {
+      "group": "Smart Contract",
+      "pages": [
+        "contract/overview",
+        "contract/functions",
+        "contract/events",
+        "contract/deployment"
+      ]
+    },
+    {
+      "group": "Architecture",
+      "pages": [
+        "architecture/overview",
+        "architecture/scanner",
+        "architecture/agents",
+        "architecture/benchmarks"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/dhananjaypai08/opm"
+  }
+}

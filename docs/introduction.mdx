@@ -1,0 +1,43 @@
+---
+title: 'Introduction'
+description: 'OPM is a drop-in npm replacement that adds cryptographic signing, multi-agent AI security auditing, on-chain risk scoring, and ZK-verified permissionless agent registration to the JavaScript supply chain.'
+---
+
+# Introduction
+
+**OPM (On-chain Package Manager)** is a security-hardened CLI wrapper around npm that introduces cryptographic package attestation, multi-agent AI threat analysis, on-chain audit registries, and decentralized report storage to the JavaScript dependency supply chain. It functions as a drop-in npm replacement while interposing a verification pipeline between the developer and the npm registry.
+
+## The Problem
+
+The npm ecosystem faces persistent supply chain threats:
+
+- **Supply chain injection**: Malicious postinstall scripts, obfuscated payloads, environment variable exfiltration, and runtime code generation
+- **Typosquatting**: Package names designed to mimic popular packages (e.g., `lodash` vs `lodahs`)
+- **Malicious packages**: Deliberately harmful code in dependencies, often introduced via maintainer takeover
+- **Dependency confusion**: Scoped vs unscoped name conflicts and internal package shadowing
+- **Known vulnerabilities**: Unpatched CVEs and GHSA advisories in transitive dependencies
+
+Traditional package managers lack cryptographic provenance, real-time threat intelligence, and decentralized trust signals. OPM addresses these gaps.
+
+## The Solution
+
+OPM combines four layers of defense:
+
+1. **Cryptographic attestation**: SHA-256 checksums and ECDSA signatures (secp256k1) derived from Ethereum wallets, with on-chain registration
+2. **Multi-agent AI auditing**: Three heterogeneous LLMs (Claude, Gemini, DeepSeek) analyze packages in parallel and submit intelligence-weighted risk scores on-chain
+3. **On-chain registry**: Risk scores, author profiles, and report URIs stored on **Base Sepolia** (chain ID 84532) in the `OPMRegistry` smart contract
+4. **ZK-verified agent registration**: Permissionless agents must pass a benchmark suite and prove 100% accuracy via zero-knowledge proofs before participating
+
+## Key Integrations
+
+| Integration | Purpose |
+|-------------|---------|
+| **Base Sepolia** | EVM chain for OPMRegistry deployment and score submission |
+| **ENS** | Author identity resolution (forward/reverse) and profile metadata |
+| **Fileverse** | IPFS-backed encrypted storage for AI scan reports (dDocs protocol) |
+| **OSV** | Real-time CVE/GHSA advisory data with CVSS v3 scoring |
+| **ChainPatrol** | Blocklist fallback for packages absent from the registry |
+
+## Architecture Overview
+
+OPM implements a domain-specific instantiation of the [ERC-8004 (Trustless Agents)](https://eips.ethereum.org/EIPS/eip-8004) pattern: agents hold on-chain identities, submit structured reputation signals (risk scores + reasoning), and attach off-chain validation evidence as Fileverse report URIs. Consumers invoking `opm install` query the registry, verify signatures, cross-reference OSV, and enforce configurable risk thresholds before permitting installation.

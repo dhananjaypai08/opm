@@ -1,0 +1,74 @@
+---
+title: 'On-chain Registry'
+description: 'OPMRegistry.sol stores packages, versions, author profiles, agent scores, and report URIs on Base Sepolia.'
+---
+
+# On-chain Registry
+
+The **OPMRegistry** smart contract is the canonical on-chain store for package metadata, author profiles, agent scores, and report URIs. It implements a domain-specific form of the [ERC-8004 (Trustless Agents)](https://eips.ethereum.org/EIPS/eip-8004) three-registry architecture.
+
+## Deployment
+
+| Property | Value |
+|----------|-------|
+| **Chain** | Base Sepolia |
+| **Chain ID** | 84532 |
+| **Contract Address** | `0x16684391fc9bf48246B08Afe16d1a57BFa181d48` |
+| **Explorer** | [BaseScan](https://sepolia.basescan.org/address/0x16684391fc9bf48246B08Afe16d1a57BFa181d48) |
+
+Override via `CONTRACT_ADDRESS` in your environment.
+
+## Data Structures
+
+| Struct | Fields |
+|--------|--------|
+| `AuthorProfile` | `addr`, `ensName`, `reputationTotal`, `reputationCount`, `packagesPublished` |
+| `AgentScore` | `agent`, `riskScore`, `reasoning` |
+| `VersionData` | `author`, `checksum`, `signature`, `reportURI`, `scores[]`, `exists` |
+| `Package` | `name`, `versions[]`, `exists` |
+| `RegisteredAgent` | `agentAddress`, `name`, `model`, `systemPromptHash`, `proofHash`, `registeredAt`, `active` |
+
+## Key Functions
+
+| Function | Access | Description |
+|----------|--------|-------------|
+| `registerPackage(name, version, checksum, sig, ensName)` | Public | Register a new package version with checksum, signature, and ENS binding |
+| `submitScore(name, version, riskScore, reasoning)` | Authorized agents | Submit a risk score (0–100) and reasoning for a package version |
+| `setReportURI(name, version, uri)` | Authorized agents | Attach a Fileverse report URI to a package version |
+| `getPackageInfo(name, version)` | View | Retrieve full metadata and aggregate score for a package version |
+| `getScores(name, version)` | View | Return all individual agent scores for a version |
+| `getAggregateScore(name, version)` | View | Compute mean risk score across all agent submissions |
+| `getSafestVersion(name, lookback)` | View | Return the lowest-risk version within a configurable lookback window |
+| `getVersions(name)` | View | List all registered versions of a package |
+| `getAuthorByAddress(addr)` | View | Retrieve author profile by Ethereum address |
+| `getAuthorByENS(ensName)` | View | Resolve author profile by ENS name |
+| `getAuthorReputation(addr)` | View | Compute author's mean risk score across all packages |
+| `registerAgent(name, model, systemPromptHash, proofHash)` | Public | Permissionless agent registration (requires valid ZK proof) |
+
+## Events
+
+| Event | Parameters |
+|-------|------------|
+| `PackageRegistered` | `name`, `version`, `author`, `ensName` |
+| `ScoreSubmitted` | `name`, `version`, `agent`, `riskScore`, `reasoning` |
+| `ReportURISet` | `name`, `version`, `uri` |
+| `AuthorRegistered` | `addr`, `ensName` |
+| `AgentAuthorized` | `agent`, `status` |
+| `AgentRegistered` | `agent`, `name`, `model`, `systemPromptHash`, `proofHash`, `timestamp` |
+
+## Author Reputation
+
+Author reputation is computed as:
+
+```
+reputation = reputationTotal / reputationCount
+```
+
+Where `reputationTotal` accumulates each agent's score for every version of every package authored by that address. This provides a cumulative risk score average across all published packages.
+
+## Risk Thresholds (Contract)
+
+| Constant | Value |
+|----------|-------|
+| `HIGH_RISK_THRESHOLD` | 70 |
+| `MEDIUM_RISK_THRESHOLD` | 40 |

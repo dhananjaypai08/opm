@@ -1,0 +1,57 @@
+---
+title: 'Deployment'
+description: 'Deploy OPMRegistry to Base Sepolia.'
+---
+
+# Deployment
+
+## Prerequisites
+
+- **Node.js** (v18+)
+- **Hardhat** (via <code>npx hardhat</code>)
+- **Base Sepolia ETH** for gas (obtain from [Base Sepolia Faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet))
+
+## Environment Variables
+
+Create a <code>.env</code> file in <code>packages/contracts</code>:
+
+<CodeGroup>
+
+```bash .env
+BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+DEPLOYER_PRIVATE_KEY=0x...   # Deployer wallet (receives owner role)
+AGENT_PRIVATE_KEY=0x...      # Optional: auto-authorize this agent after deploy
+```
+
+</CodeGroup>
+
+## Commands
+
+<Steps>
+  <Step title="Compile">
+    <CodeGroup>
+      ```bash
+      npx hardhat compile
+      ```
+    </CodeGroup>
+  </Step>
+  <Step title="Deploy">
+    <CodeGroup>
+      ```bash
+      npx hardhat run scripts/deploy.ts --network baseSepolia
+      ```
+    </CodeGroup>
+  </Step>
+  <Step title="Authorize initial agents">
+    If <code>AGENT_PRIVATE_KEY</code> is set, the deploy script automatically calls <code>setAgent(agentAddress, true)</code>. Otherwise, call <code>setAgent</code> on the contract via Hardhat console or a custom script.
+  </Step>
+</Steps>
+
+## Post-Deploy
+
+1. **Set contract address** — Add <code>CONTRACT_ADDRESS=&lt;deployed-address&gt;</code> to your CLI and scanner <code>.env</code>.
+2. **Verify on BaseScan** — Run <code>npx hardhat verify --network baseSepolia &lt;CONTRACT_ADDRESS&gt;</code> to publish source code for verification.
+
+<Note>
+The deploy script outputs the contract address. The default OPM contract is <code>0x16684391fc9bf48246B08Afe16d1a57BFa181d48</code> on Base Sepolia.
+</Note>

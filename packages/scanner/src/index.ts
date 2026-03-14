@@ -9,6 +9,8 @@ export { fetchPackageData, extractMetadata, buildVersionHistory, fetchSourceFile
 export { submitScoreOnChain, setReportURIOnChain } from './services/contract-writer';
 export { uploadReportToFileverse, uploadCheckReportToFileverse, fetchReportFromFileverse } from './services/fileverse';
 export { formatCheckReportAsMarkdown } from './services/report-formatter';
+export { runBenchmarkSuite, type AgentCandidate, type BenchmarkRunResult } from './services/benchmark-runner';
+export { generateProof, verifyProof, generateCommitment, proofToOnChainBytes, type ZKProof } from './services/zk-verifier';
 
 if (import.meta.main) {
   const [pkg, ver] = process.argv.slice(2);

@@ -21,7 +21,21 @@ export const BASE_SEPOLIA_RPC = 'https://sepolia.base.org';
 export const ETH_MAINNET_RPC = 'https://eth.llamarpc.com';
 export const ETH_SEPOLIA_RPC = 'https://ethereum-sepolia-rpc.publicnode.com';
 
-export const DEFAULT_CONTRACT_ADDRESS = '0x8A6a9a8c7e03F826915bf9f6dA036A0C1A9D1E85';
+export const DEFAULT_CONTRACT_ADDRESS = '0x16684391fc9bf48246B08Afe16d1a57BFa181d48';
+
+export const BASE_SEPOLIA_EXPLORER = 'https://sepolia.basescan.org';
+
+export function txUrl(hash: string): string {
+  return `${BASE_SEPOLIA_EXPLORER}/tx/${hash}`;
+}
+
+export function addressUrl(addr: string): string {
+  return `${BASE_SEPOLIA_EXPLORER}/address/${addr}`;
+}
+
+export function contractUrl(): string {
+  return addressUrl(DEFAULT_CONTRACT_ADDRESS);
+}
 
 export const FILEVERSE_DEFAULT_URL = 'http://localhost:8001';
 

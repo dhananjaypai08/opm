@@ -1,0 +1,99 @@
+---
+title: 'opm push'
+description: 'Sign, scan, publish, and register a package on-chain.'
+---
+
+# opm push
+
+Sign, scan, publish, and register a package on-chain. The full verification pipeline runs before publishing to npm and registering on the OPMRegistry.
+
+## What It Does
+
+<Steps>
+  <Step title="Pack tarball">
+    Creates an npm tarball via <code>npm pack</code> and computes SHA-256 checksum over the packed file.
+  </Step>
+  <Step title="Sign checksum">
+    Signs the checksum with ECDSA (secp256k1) using your <code>OPM_SIGNING_KEY</code>.
+  </Step>
+  <Step title="Resolve ENS">
+    Resolves your wallet address to an ENS name (Base Sepolia, then Ethereum Mainnet fallback).
+  </Step>
+  <Step title="Security scan">
+    Runs 3 AI agents in parallel (Claude, Gemini, DeepSeek) to analyze the package. Each agent submits a risk score (0–100) and reasoning on-chain.
+  </Step>
+  <Step title="Risk check">
+    If aggregate score ≥ 80 or risk level is CRITICAL, publishing is blocked.
+  </Step>
+  <Step title="Publish to npm">
+    Publishes the tarball to the npm registry (uses <code>--token</code> or <code>NPM_TOKEN</code> for automation).
+  </Step>
+  <Step title="Register on-chain">
+    Calls <code>OPMRegistry.registerPackage()</code> with package name, version, checksum, signature, and ENS name.
+  </Step>
+</Steps>
+
+## Usage
+
+<CodeGroup>
+
+```bash Basic
+opm push
+```
+
+```bash With npm token
+opm push --token <npm-token>
+```
+
+```bash With 2FA code
+opm push --otp <code>
+```
+
+</CodeGroup>
+
+## Required Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `OPM_SIGNING_KEY` | Ethereum private key for package signing (ECDSA) |
+| `OPENROUTER_API_KEY` or `OPENAI_API_KEY` | At least one required for AI agent scanning |
+| `AGENT_PRIVATE_KEY` | Agent wallet for submitting scores on-chain (must hold Base Sepolia ETH for gas) |
+
+## Optional Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `NPM_TOKEN` | npm automation token (alternative to <code>--token</code> flag) |
+| `FILEVERSE_API_KEY` | Upload audit report to IPFS via Fileverse |
+
+## Risk Blocking
+
+<Warning>
+Packages with **risk score ≥ 80** or **CRITICAL** level are blocked from publishing. The scan step fails, npm publish is skipped, and on-chain registration does not occur.
+</Warning>
+
+When blocked, the CLI shows which agents scored the package and the aggregate risk. Fix the issues and run <code>opm push</code> again.
+
+## What Gets Stored On-Chain
+
+After a successful push, the following data is recorded on the OPMRegistry:
+
+| Data | Description |
+|------|-------------|
+| Package name | From <code>package.json</code> |
+| Version | Semantic version |
+| Checksum | SHA-256 hash of the tarball |
+| Signature | ECDSA signature of the checksum |
+| ENS name | Author identity (e.g. <code>vitalik.eth</code>) |
+| Agent scores | Per-agent risk scores and reasoning |
+| Report URI | Fileverse/IPFS link to the full audit report |
+
+## Output
+
+- **Etherscan links** for every transaction: score submissions (one per agent) and package registration
+- **Report URI** link when uploaded to Fileverse
+- **npm package URL** on successful publish
+
+<Note>
+If 2FA is enabled on your npm account, use <code>opm push --otp &lt;code&gt;</code> or an npm automation token with "bypass 2FA" enabled.
+</Note>

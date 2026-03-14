@@ -9,6 +9,7 @@ import { AuthorViewCommand } from './commands/author-view';
 import { CheckCommand } from './commands/check';
 import { FixCommand } from './commands/fix';
 import { PassthroughCommand } from './commands/passthrough';
+import { RegisterAgentCommand } from './commands/register-agent';
 import { Header } from './components/Header';
 
 const args = process.argv.slice(2);
@@ -67,6 +68,29 @@ function App() {
       const ensArg = rest[0].endsWith('.eth') ? rest[0] : `${rest[0]}.eth`;
       return <AuthorViewCommand ensName={ensArg} />;
     }
+    case 'register-agent': {
+      const nameIdx = rest.findIndex((a) => a === '--name');
+      const modelIdx = rest.findIndex((a) => a === '--model');
+      const promptIdx = rest.findIndex((a) => a === '--system-prompt');
+      const agentName = nameIdx >= 0 ? rest[nameIdx + 1] : undefined;
+      const agentModel = modelIdx >= 0 ? rest[modelIdx + 1] : undefined;
+      const systemPrompt = promptIdx >= 0 ? rest[promptIdx + 1] : undefined;
+      if (!agentName || !agentModel) {
+        return (
+          <Box flexDirection="column">
+            <Header />
+            <Text color="red">Usage: opm register-agent --name {'<name>'} --model {'<model>'} [--system-prompt {'<prompt>'}]</Text>
+            <Text color="gray">  --name          Agent identifier (e.g. my-security-agent)</Text>
+            <Text color="gray">  --model         LLM model to use (e.g. anthropic/claude-sonnet-4-20250514)</Text>
+            <Text color="gray">  --system-prompt Custom system prompt (defaults to OPM security auditor prompt)</Text>
+            <Text> </Text>
+            <Text color="gray">The agent will be benchmarked against 10 labeled security test cases.</Text>
+            <Text color="gray">A ZK proof of 100% accuracy is required for registration.</Text>
+          </Box>
+        );
+      }
+      return <RegisterAgentCommand agentName={agentName} model={agentModel} systemPrompt={systemPrompt} />;
+    }
     default:
       if (command && PASSTHROUGH.has(command)) {
         return <PassthroughCommand command={command} args={rest} />;
@@ -89,6 +113,12 @@ function Help() {
         <Text>  opm info {'<pkg>'}            Show on-chain security info for a package</Text>
         <Text>  opm view {'<name.eth>'}      Show author profile, packages, and risk scores</Text>
         <Text>  opm whois {'<name>'}          Look up an ENS identity on OPM</Text>
+        <Text> </Text>
+        <Text color="cyan" bold>Agent commands:</Text>
+        <Text>  opm register-agent          Register a new security agent (ZK-verified)</Text>
+        <Text>    --name {'<name>'}             Agent identifier</Text>
+        <Text>    --model {'<model>'}           LLM model (e.g. anthropic/claude-sonnet-4-20250514)</Text>
+        <Text>    --system-prompt {'<p>'}       Custom system prompt (optional)</Text>
         <Text> </Text>
         <Text color="cyan" bold>Standard commands (npm passthrough):</Text>
         <Text>  opm init                Initialize a new package</Text>

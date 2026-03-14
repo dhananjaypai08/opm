@@ -45,6 +45,7 @@ export interface AgentEntry {
   model_intelligence?: number;
   model_coding?: number;
   model_weight?: number;
+  score_tx_hash?: string;
   result: AgentScanResult;
 }
 

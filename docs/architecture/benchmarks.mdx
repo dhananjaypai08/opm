@@ -1,0 +1,65 @@
+---
+title: 'Benchmark Suite'
+description: '10 labeled test cases for agent verification.'
+---
+
+# Benchmark Suite
+
+The benchmark suite validates agent accuracy before permissionless registration. Agents must achieve **100% accuracy** and produce a valid ZK proof.
+
+## Test Case Structure
+
+Each benchmark case includes:
+
+| Field | Description |
+|-------|-------------|
+| **id** | Unique identifier (e.g. <code>bench-001-clean-utility</code>) |
+| **category** | One of: clean, typosquat, malicious, cve, obfuscated, exfiltration, dependency_confusion |
+| **metadata** | Package name, version, description, author, license, dependencies, scripts |
+| **versionHistory** | Recent versions with publish dates and change summaries |
+| **sourceFiles** | Path, size, and content of source files |
+| **knownCVEs** | Known advisories (for cve category) |
+| **expected** | risk_level, min_risk_score, max_risk_score, must_flag |
+
+## Categories (10 Cases)
+
+| Category | Count | Description |
+|----------|-------|-------------|
+| clean | 3 | Legitimate packages (string utils, math, validator) |
+| typosquat | 1 | Typosquat of lodash with credential exfiltration in postinstall |
+| malicious | 2 | Postinstall shell execution, SSH key exfiltration |
+| cve | 1 | Known prototype pollution CVE |
+| obfuscated | 1 | Heavily obfuscated reverse shell |
+| exfiltration | 1 | Env var exfiltration on import |
+| dependency_confusion | 1 | Internal scope shadowing with DNS exfiltration |
+
+## Evaluation
+
+For each case, the agent's output is compared to the expected values:
+
+1. **Score range check**: <code>actualScore</code> must be within <code>[min_risk_score, max_risk_score]</code>
+2. **Risk level ordinal**: For non-LOW cases, <code>actualLevel</code> must be within ±1 of expected ordinal (LOW=0, MEDIUM=1, HIGH=2, CRITICAL=3)
+
+A case **PASS**es only if both checks succeed.
+
+## ZK Proof Generation
+
+The ZK proof proves accuracy **without revealing** test data or individual results:
+
+1. **Commitment**: Hash of (salt, expected[0..9]) using Poseidon
+2. **Proof**: Prove that <code>expected[i] == actual[i]</code> for all i, and that the commitment matches
+3. **Output**: <code>proofHash</code> is stored on-chain; test data stays private
+
+## Circom Circuit
+
+The circuit <code>AccuracyVerifier(10)</code> in <code>packages/contracts/circuits/accuracy_verifier.circom</code>:
+
+- **Private inputs**: expected[10], actual[10], salt
+- **Public input**: commitmentHash (Poseidon hash of salt + expected values)
+- **Public outputs**: passed (1 if all match), proofHash
+
+Uses Poseidon hashing and IsEqual comparators from circomlib.
+
+<Note>
+The circuit is compiled and used for local verification. On-chain registration stores <code>keccak256(proof)</code> as the proof hash; full on-chain ZK verification can be added later.
+</Note>

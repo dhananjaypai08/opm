@@ -1,0 +1,76 @@
+---
+title: 'Security Model'
+description: 'OPM defense-in-depth: cryptographic attestation, multi-agent AI, CVE integration, supply chain checks, and ENS-based trust.'
+---
+
+# Security Model
+
+OPM employs a **defense-in-depth** architecture across five layers. No single layer is sufficient; together they mitigate supply chain injection, typosquatting, dependency confusion, maintainer takeover, and known vulnerability exploitation.
+
+## 1. Cryptographic Layer
+
+- **SHA-256 checksum**: Computed over the packed tarball; stored on-chain and verified at install time
+- **ECDSA signature**: secp256k1 signature over the checksum, derived from the author's Ethereum private key
+- **On-chain registration**: Checksum, signature, and author binding stored in `OPMRegistry` on Base Sepolia
+
+Installation is blocked if the tarball checksum does not match the on-chain value or if the signature verification fails.
+
+## 2. AI Layer
+
+Three heterogeneous LLMs analyze packages in parallel:
+
+- Static analysis of source code, dependency metadata, and version history
+- Each agent submits a risk score (0–100) and reasoning on-chain
+- **Intelligence-weighted aggregation** via the Artificial Analysis API (Intelligence Index, Coding Index)
+- Fallback to equal weighting if the API is unavailable
+
+<CardGroup cols={2}>
+  <Card title="Agent 1" icon="robot">
+    Claude Sonnet 4 (OpenRouter) / GPT-4.1 (OpenAI fallback)
+  </Card>
+  <Card title="Agent 2" icon="robot">
+    Gemini 2.5 Flash (OpenRouter) / GPT-4.1 Mini (OpenAI fallback)
+  </Card>
+  <Card title="Agent 3" icon="robot">
+    DeepSeek Chat (OpenRouter) / GPT-4.1 Nano (OpenAI fallback)
+  </Card>
+</CardGroup>
+
+## 3. CVE Layer
+
+- **OSV (Open Source Vulnerabilities)**: Real-time CVE and GHSA advisory data
+- **GitHub Advisory Database**: Integrated via OSV API
+- **CVSS v3** base score computation for severity classification
+- **CRITICAL** severity: installation blocked
+- **HIGH** severity: warning with suggested fix version
+
+## 4. Supply Chain Layer
+
+| Check | Description |
+|-------|-------------|
+| **Typosquat detection** | Package names compared against npm search results and download-count differentials; AI agents assess name similarity |
+| **Dependency confusion** | Scoped vs unscoped name conflicts and internal package shadowing surfaced during `opm check` |
+| **ChainPatrol blocklist** | Fallback blocklist for packages absent from the on-chain registry (requires `CHAINPATROL_API_KEY`) |
+
+AI agents also flag: install scripts, native bindings, obfuscated code, network calls, filesystem access, process spawning, `eval` usage, and environment variable access.
+
+## 5. Trust Layer
+
+- **ENS identity resolution**: Author addresses resolved to ENS names (Sepolia, Mainnet fallback)
+- **On-chain author reputation**: Cumulative risk score average across all published packages
+- **Author profiles**: ENS text records (avatar, description, URL, GitHub, Twitter, email) for human verification
+
+## Risk Thresholds
+
+| Range | Level | Effect |
+|-------|-------|--------|
+| 0–20 | LOW | Safe to install |
+| 21–40 | MEDIUM | Flagged for caution |
+| 41–70 | HIGH | Warnings triggered |
+| 71–100 | CRITICAL | High risk |
+
+| Threshold | Value | Behavior |
+|-----------|-------|----------|
+| Block threshold (CLI) | 80 | `opm push` blocks publication; `opm install` blocks installation |
+| `HIGH_RISK_THRESHOLD` (contract) | 70 | Packages above trigger warnings |
+| `MEDIUM_RISK_THRESHOLD` (contract) | 40 | Packages above flagged for caution |

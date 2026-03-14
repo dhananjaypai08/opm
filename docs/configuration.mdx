@@ -1,0 +1,82 @@
+---
+title: 'Configuration'
+description: 'Environment variables for OPM: signing keys, API keys, RPC URLs, and model overrides.'
+---
+
+# Configuration
+
+OPM is configured via environment variables. Read-only commands (`install`, `audit`, `info`, `view`, `whois`, `check`) work with zero configuration. Author-side commands (`push`, `register-agent`) require keys and optional overrides.
+
+## Environment Variables
+
+### Signing & Identity
+
+| Variable | Description | Required For |
+|----------|-------------|--------------|
+| `OPM_SIGNING_KEY` | Author's Ethereum private key for package signing (ECDSA secp256k1) | `opm push` |
+| `OPM_PRIVATE_KEY` | Alias for `OPM_SIGNING_KEY` | `opm push` |
+| `AGENT_PRIVATE_KEY` | Agent wallet key for score submission and agent registration; must hold Base Sepolia ETH for gas | `opm push`, `register-agent` |
+
+### npm
+
+| Variable | Description | Required For |
+|----------|-------------|--------------|
+| `NPM_TOKEN` | npm automation token for publish (bypasses 2FA) | `opm push` (optional; use `--token` flag otherwise) |
+
+### AI / LLM
+
+| Variable | Description | Required For |
+|----------|-------------|--------------|
+| `OPENROUTER_API_KEY` | OpenRouter API key for multi-model access (Claude, Gemini, DeepSeek) | `opm push`, `opm check` (at least one of OPENROUTER or OPENAI) |
+| `OPENAI_API_KEY` | OpenAI API key; fallback to GPT-4.1 family | `opm push`, `opm check` |
+| `LLM_PROVIDER` | Force provider: `"openrouter"` or `"openai"` | Optional override |
+| `AGENT1_MODEL` | Override agent-1 model (default: Claude Sonnet 4) | Optional |
+| `AGENT2_MODEL` | Override agent-2 model (default: Gemini 2.5 Flash) | Optional |
+| `AGENT3_MODEL` | Override agent-3 model (default: DeepSeek Chat) | Optional |
+
+### Report Storage
+
+| Variable | Description | Required For |
+|----------|-------------|--------------|
+| `FILEVERSE_API_KEY` | API key for report uploads to IPFS (generate at [ddocs.new](https://ddocs.new) → Settings → Developer Mode) | `opm push` report uploads |
+| `FILEVERSE_API_URL` | Override Fileverse API base URL (default: `http://localhost:8001`) | Optional |
+
+### On-Chain Registry
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CONTRACT_ADDRESS` | OPMRegistry contract address | `0x16684391fc9bf48246B08Afe16d1a57BFa181d48` |
+| `BASE_SEPOLIA_RPC_URL` | Base Sepolia RPC endpoint | `https://sepolia.base.org` |
+
+### External Services
+
+| Variable | Description | Required For |
+|----------|-------------|--------------|
+| `CHAINPATROL_API_KEY` | ChainPatrol API key for blocklist checks | Optional; enables blocklist fallback |
+| `ARTIFICIAL_ANALYSIS_API_KEY` | API key for model intelligence rankings (intelligence-weighted scoring) | Optional; falls back to equal weighting if unset |
+
+## Example `.env`
+
+<CodeGroup>
+
+```bash Minimal
+# No env vars needed for: install, audit, info, view, whois, check
+```
+
+```bash Full (push + reports)
+OPM_SIGNING_KEY=0x...
+AGENT_PRIVATE_KEY=0x...
+NPM_TOKEN=npm_...
+OPENROUTER_API_KEY=sk-or-...
+FILEVERSE_API_KEY=...
+CONTRACT_ADDRESS=0x16684391fc9bf48246B08Afe16d1a57BFa181d48
+BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+CHAINPATROL_API_KEY=...
+ARTIFICIAL_ANALYSIS_API_KEY=...
+```
+
+</CodeGroup>
+
+<Tip>
+Start the Fileverse API server locally before `opm push` if using report uploads: `npx @fileverse/api --apiKey <YOUR_API_KEY>`
+</Tip>

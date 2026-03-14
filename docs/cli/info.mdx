@@ -1,0 +1,44 @@
+---
+title: 'opm info'
+description: 'Show on-chain security information for a package.'
+---
+
+# opm info
+
+Show on-chain security information for a package. Displays author, checksum, signature, ENS name, report URI, agent scores, aggregate score, and safest version.
+
+## Usage
+
+<CodeGroup>
+
+```bash Latest version
+opm info lodash
+```
+
+```bash Specific version
+opm info lodash@4.17.21
+```
+
+</CodeGroup>
+
+## Output
+
+| Field | Description |
+|-------|-------------|
+| Author | Wallet address (with ENS resolution when available) |
+| Checksum | SHA-256 hash of the tarball |
+| Signature | ECDSA signature (verified or unverified) |
+| ENS name | Author identity (e.g. <code>vitalik.eth</code>) |
+| Report URI | Link to Fileverse audit report |
+| Agent scores | Per-agent risk scores and reasoning |
+| Aggregate score | Mean risk score (0–100) |
+| Safest version | Lowest-risk version in recent releases |
+
+## Links
+
+- **Fileverse report** — Full AI audit when report URI is set
+- **BaseScan** — Contract and transaction links
+
+<Note>
+If the package is not in the OPM registry, a warning is shown. No env vars are required.
+</Note>

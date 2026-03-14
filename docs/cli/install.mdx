@@ -1,0 +1,71 @@
+---
+title: 'opm install'
+description: 'Install packages with on-chain security verification.'
+---
+
+# opm install
+
+Install packages with on-chain security verification. OPM runs a verification pipeline before delegating to npm.
+
+## Usage
+
+<CodeGroup>
+
+```bash Install specific package
+opm install lodash
+```
+
+```bash Install with version
+opm install lodash@4.17.21
+```
+
+```bash Install all dependencies
+opm install
+```
+
+</CodeGroup>
+
+## Aliases
+
+- <code>opm i</code> — same as <code>opm install</code>
+- <code>opm add</code> — same as <code>opm install</code>
+
+## Verification Pipeline
+
+<AccordionGroup>
+  <Accordion title="CVE check (OSV)">
+    Queries the OSV API for known CVEs and GHSA advisories. **CRITICAL** CVEs block installation.
+  </Accordion>
+  <Accordion title="On-chain score lookup">
+    Fetches aggregate risk score from OPMRegistry. Blocks if score ≥ 70.
+  </Accordion>
+  <Accordion title="Signature verification">
+    Verifies ECDSA signature against tarball checksum for packages in the registry.
+  </Accordion>
+  <Accordion title="ChainPatrol blocklist">
+    For packages not in the OPM registry, falls back to ChainPatrol API. BLOCKED status prevents install.
+  </Accordion>
+</AccordionGroup>
+
+## Blocking Rules
+
+<Warning>
+Installation is **blocked** if:
+- Risk score ≥ 70 (on-chain)
+- Any CRITICAL CVE is present (OSV)
+- ChainPatrol returns BLOCKED (for unregistered packages)
+</Warning>
+
+## Fallback Behavior
+
+<Note>
+If a package is **not in the OPM registry**, OPM falls back to standard <code>npm install</code> with a warning. ChainPatrol is consulted when available.
+</Note>
+
+## Environment Variables
+
+No environment variables are required for basic install. Defaults for RPC, contract address, and API URLs are built-in.
+
+<Tip>
+For bulk install (<code>opm install</code> with no args), all <code>dependencies</code> and <code>devDependencies</code> are scanned in parallel before npm install runs.
+</Tip>

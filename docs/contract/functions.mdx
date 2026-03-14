@@ -1,0 +1,220 @@
+---
+title: 'Contract Functions'
+description: 'All OPMRegistry functions with parameters and behavior.'
+---
+
+# Contract Functions
+
+## Admin (Owner Only)
+
+### setAgent
+
+```solidity
+function setAgent(address agent, bool status) external onlyOwner
+```
+
+Authorize or deauthorize an agent. Only the contract owner can call this.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| agent | address | Agent wallet address |
+| status | bool | true = authorized, false = deauthorized |
+
+### revokeAgent
+
+```solidity
+function revokeAgent(address agent) external onlyOwner
+```
+
+Deactivate a registered agent. Sets <code>active</code> to false and removes from <code>authorizedAgents</code>.
+
+---
+
+## Package Registration (Public)
+
+### registerPackage
+
+```solidity
+function registerPackage(
+    string calldata name,
+    string calldata version,
+    bytes32 checksum,
+    bytes calldata sig,
+    string calldata ensName
+) external
+```
+
+Register a package version. Callable by anyone; the sender becomes the author.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| name | string | Package name |
+| version | string | Semantic version |
+| checksum | bytes32 | SHA-256 of tarball |
+| sig | bytes | ECDSA signature of checksum |
+| ensName | string | Author ENS name (e.g. vitalik.eth) |
+
+Reverts if the version is already registered.
+
+---
+
+## Agent-Only (Authorized Agents)
+
+### submitScore
+
+```solidity
+function submitScore(
+    string calldata name,
+    string calldata version,
+    uint8 riskScore,
+    string calldata reasoning
+) external onlyAgent
+```
+
+Submit a risk score (0–100) for a package version. Each agent may score a version only once.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| name | string | Package name |
+| version | string | Semantic version |
+| riskScore | uint8 | Risk score 0–100 |
+| reasoning | string | Agent reasoning |
+
+### setReportURI
+
+```solidity
+function setReportURI(
+    string calldata name,
+    string calldata version,
+    string calldata uri
+) external onlyAgent
+```
+
+Set the Fileverse/IPFS report URI for a package version.
+
+---
+
+## Permissionless Agent Registration
+
+### registerAgent
+
+```solidity
+function registerAgent(
+    string calldata name,
+    string calldata model,
+    bytes32 systemPromptHash,
+    bytes32 proofHash
+) external
+```
+
+Register a new agent with ZK-verified benchmark proof. Callable by anyone; the sender becomes the agent.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| name | string | Agent identifier |
+| model | string | LLM model (e.g. anthropic/claude-sonnet-4) |
+| systemPromptHash | bytes32 | Keccak256 of system prompt |
+| proofHash | bytes32 | Keccak256 of ZK proof |
+
+Reverts if the sender is already authorized or registered, or if <code>proofHash</code> is zero.
+
+---
+
+## View Functions
+
+### getPackageInfo
+
+```solidity
+function getPackageInfo(string calldata name, string calldata version)
+    external view returns (
+        address author,
+        bytes32 checksum,
+        bytes memory sig,
+        string memory ensName,
+        string memory reportURI,
+        uint8 aggregateScore,
+        bool exists
+    )
+```
+
+Returns full package info for a version. <code>aggregateScore</code> is the mean of all agent scores.
+
+### getScores
+
+```solidity
+function getScores(string calldata name, string calldata version)
+    external view returns (AgentScore[] memory)
+```
+
+Returns all agent scores for a package version. Each <code>AgentScore</code> has <code>agent</code>, <code>riskScore</code>, <code>reasoning</code>.
+
+### getAggregateScore
+
+```solidity
+function getAggregateScore(string calldata name, string calldata version)
+    external view returns (uint8)
+```
+
+Returns the mean risk score (0 if no scores).
+
+### getSafestVersion
+
+```solidity
+function getSafestVersion(string calldata name, uint8 lookback)
+    external view returns (string memory)
+```
+
+Returns the lowest-risk version among the last <code>lookback</code> versions. Default lookback is 3.
+
+### getVersions
+
+```solidity
+function getVersions(string calldata name)
+    external view returns (string[] memory)
+```
+
+Returns all registered versions for a package.
+
+### getAuthorByAddress
+
+```solidity
+function getAuthorByAddress(address addr)
+    external view returns (AuthorProfile memory)
+```
+
+Returns author profile by wallet address. <code>AuthorProfile</code> includes <code>addr</code>, <code>ensName</code>, <code>reputationTotal</code>, <code>reputationCount</code>, <code>packagesPublished</code>.
+
+### getAuthorByENS
+
+```solidity
+function getAuthorByENS(string calldata ensName)
+    external view returns (AuthorProfile memory)
+```
+
+Returns author profile by ENS name. Reverts if ENS not found.
+
+### getAuthorReputation
+
+```solidity
+function getAuthorReputation(address addr)
+    external view returns (uint256)
+```
+
+Returns average reputation (mean of all scores received) for an author. 0 if no scores.
+
+### getRegisteredAgent
+
+```solidity
+function getRegisteredAgent(address agent)
+    external view returns (RegisteredAgent memory)
+```
+
+Returns registered agent info: <code>agentAddress</code>, <code>name</code>, <code>model</code>, <code>systemPromptHash</code>, <code>proofHash</code>, <code>registeredAt</code>, <code>active</code>.
+
+### getAgentCount
+
+```solidity
+function getAgentCount() external view returns (uint256)
+```
+
+Returns the number of registered agents.

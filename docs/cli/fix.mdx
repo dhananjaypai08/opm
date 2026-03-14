@@ -1,0 +1,49 @@
+---
+title: 'opm fix'
+description: 'Auto-fix typosquats and vulnerable dependencies.'
+---
+
+# opm fix
+
+Same scan as <code>opm check</code> but auto-applies fixes to <code>package.json</code>. Replaces typosquat packages with correct names and updates vulnerable packages to patched versions.
+
+## What It Fixes
+
+<AccordionGroup>
+  <Accordion title="Typosquats">
+    Replaces package names detected as typosquats with the likely correct name (e.g. <code>lodahs</code> → <code>lodash</code>).
+  </Accordion>
+  <Accordion title="Vulnerable packages">
+    Updates packages with CRITICAL or HIGH CVEs to the patched version suggested by OSV.
+  </Accordion>
+  <Accordion title="AI-suggested replacements">
+    When 2+ agents flag a package and suggest a replacement, the fix is applied if the suggestion is valid.
+  </Accordion>
+</AccordionGroup>
+
+## Process
+
+<Steps>
+  <Step title="Scan dependencies">
+    Runs typosquat detection, CVE lookup, and AI agent analysis (same as <code>opm check</code>).
+  </Step>
+  <Step title="Collect fixes">
+    Builds a list of fixes: typosquat renames, CVE upgrades, and AI-suggested replacements.
+  </Step>
+  <Step title="Apply to package.json">
+    Modifies <code>dependencies</code> and <code>devDependencies</code> with the fixes. Preserves version range prefixes (<code>^</code>, <code>~</code>).
+  </Step>
+  <Step title="Upload report">
+    Optionally uploads the scan report to Fileverse when <code>FILEVERSE_API_KEY</code> is set.
+  </Step>
+</Steps>
+
+## After Running
+
+<Warning>
+<code>opm fix</code> modifies <code>package.json</code> in place. Run <code>npm install</code> (or <code>opm install</code>) to apply the changes and update the lockfile.
+</Warning>
+
+<Tip>
+Review the diff in <code>package.json</code> before committing. AI-suggested replacements require consensus from 2+ agents before being applied.
+</Tip>

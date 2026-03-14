@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
-import { getEnvOrThrow, truncateAddress, classifyRisk } from '@opm/core';
+import { getEnvOrThrow, truncateAddress, classifyRisk, txUrl, contractUrl, addressUrl } from '@opm/core';
 import type { AgentEntry } from '@opm/core';
 import { Header } from '../components/Header';
 import { StatusLine, type Status } from '../components/StatusLine';
@@ -272,6 +272,12 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
                     <Text color="yellow">{agent.result.vulnerabilities.length} vulnerabilities found</Text>
                   </Box>
                 )}
+                {agent.score_tx_hash && (
+                  <Box marginLeft={2}>
+                    <Text color="gray">⛓  </Text>
+                    <Hyperlink url={txUrl(agent.score_tx_hash)} label={`score tx ${agent.score_tx_hash.slice(0, 10)}…`} color="cyan" />
+                  </Box>
+                )}
               </Box>
             );
           })}
@@ -307,6 +313,18 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
             </Box>
           )}
           <StatusLine label="Register on-chain" status={steps.register} detail={result.txHash?.slice(0, 16)} />
+          {result.txHash && (
+            <Box flexDirection="column" marginLeft={4}>
+              <Box>
+                <Text color="gray">⛓  </Text>
+                <Hyperlink url={txUrl(result.txHash)} label={`tx ${result.txHash.slice(0, 10)}…`} color="green" />
+              </Box>
+              <Box>
+                <Text color="gray">📋 </Text>
+                <Hyperlink url={contractUrl()} label="OPM Registry Contract" color="cyan" />
+              </Box>
+            </Box>
+          )}
         </>
       )}
 

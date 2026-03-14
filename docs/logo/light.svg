@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" fill="none">
+  <path d="M4 8L8 24L12 14L16 24L20 8" stroke="#0a0a0a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="12" cy="27" r="1.5" fill="#16a34a"/>
+  <text x="28" y="22" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600" fill="#0a0a0a" letter-spacing="-0.5">opm</text>
+</svg>

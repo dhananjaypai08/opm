@@ -65,9 +65,10 @@ export async function runAgent(
   log(`[${config.agentId}] ${config.model} — intelligence: ${intelligence}, coding: ${coding}, weight: ${weight}`);
 
   log(`[${config.agentId}] Submitting score (${result.risk_score}) to contract...`);
+  let scoreTxHash: string | undefined;
   try {
-    await submitScoreOnChain(packageName, version, result.risk_score, result.reasoning);
-    log(`[${config.agentId}] Score submitted on-chain`);
+    scoreTxHash = await submitScoreOnChain(packageName, version, result.risk_score, result.reasoning);
+    log(`[${config.agentId}] Score submitted on-chain ✓`);
   } catch (err: any) {
     log(`[${config.agentId}] On-chain: ${err?.shortMessage || err?.message || 'failed'}`);
   }
@@ -78,6 +79,7 @@ export async function runAgent(
     model_intelligence: intelligence,
     model_coding: coding,
     model_weight: weight,
+    score_tx_hash: scoreTxHash,
     result,
   };
 }

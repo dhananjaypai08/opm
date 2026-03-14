@@ -1,6 +1,6 @@
 import { OPENROUTER_API_URL, OPENAI_API_URL } from '@opm/core';
 import type { AgentScanResult } from '@opm/core';
-import { validateScanResult, safeJsonParse } from '@opm/core';
+import { validateScanResult, normalizeScanResult, safeJsonParse } from '@opm/core';
 
 function getProvider(): { apiUrl: string; apiKey: string; kind: 'openai' | 'openrouter' } {
   const forcedProvider = process.env.LLM_PROVIDER;
@@ -53,6 +53,10 @@ export async function callLLM(
     headers['X-Title'] = 'OPM Security Scanner';
   }
 
+  const tokenLimit = kind === 'openai'
+    ? { max_completion_tokens: 4096 }
+    : { max_tokens: 4096 };
+
   const res = await fetch(apiUrl, {
     method: 'POST',
     headers,
@@ -64,7 +68,7 @@ export async function callLLM(
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1,
-      max_tokens: 4096,
+      ...tokenLimit,
     }),
   });
 
@@ -78,11 +82,14 @@ export async function callLLM(
   if (!raw) throw new Error(`Empty response from ${kind}/${model}`);
 
   const parsed = safeJsonParse<AgentScanResult>(raw);
-  if (!parsed || !validateScanResult(parsed)) {
-    throw new Error(`Invalid scan result JSON from ${model}: ${raw.slice(0, 200)}`);
-  }
+  if (!parsed) throw new Error(`Unparseable JSON from ${model}: ${raw.slice(0, 200)}`);
 
-  return parsed;
+  if (validateScanResult(parsed)) return parsed;
+
+  const normalized = normalizeScanResult(parsed);
+  if (!normalized) throw new Error(`Cannot normalize scan result from ${model}: ${raw.slice(0, 200)}`);
+
+  return normalized;
 }
 
 export async function callLLMRaw<T = unknown>(
@@ -102,6 +109,10 @@ export async function callLLMRaw<T = unknown>(
     headers['X-Title'] = 'OPM Security Scanner';
   }
 
+  const tokenLimit = kind === 'openai'
+    ? { max_completion_tokens: 4096 }
+    : { max_tokens: 4096 };
+
   const res = await fetch(apiUrl, {
     method: 'POST',
     headers,
@@ -113,7 +124,7 @@ export async function callLLMRaw<T = unknown>(
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1,
-      max_tokens: 4096,
+      ...tokenLimit,
     }),
   });
 

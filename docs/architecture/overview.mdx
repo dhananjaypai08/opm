@@ -1,0 +1,58 @@
+---
+title: 'Architecture Overview'
+description: 'Monorepo structure and data flow.'
+---
+
+# Architecture Overview
+
+OPM is a monorepo with five main packages. The flow is: **CLI → Scanner → LLM providers → Contract writer → Base Sepolia**.
+
+## Monorepo Structure
+
+| Package | Purpose |
+|--------|---------|
+| **packages/core** | Types, constants, prompts, benchmarks, risk classification |
+| **packages/scanner** | Agents, LLM calls, queue, benchmark runner, ZK verifier |
+| **packages/cli** | Ink terminal UI, commands, npm/ENS/OSV integration |
+| **packages/contracts** | Solidity (OPMRegistry), Hardhat, Circom circuits |
+| **packages/web** | Next.js website |
+
+## Data Flow
+
+```
+┌─────────────┐     ┌─────────────┐     ┌──────────────────┐
+│   opm push  │────▶│   Scanner   │────▶│  LLM Providers   │
+│   opm check │     │  (agents)   │     │ OpenRouter/OpenAI│
+└─────────────┘     └──────┬──────┘     └──────────────────┘
+       │                   │
+       │                   ▼
+       │            ┌─────────────┐
+       │            │  Contract   │
+       │            │   Writer    │
+       │            └──────┬──────┘
+       │                   │
+       ▼                   ▼
+┌─────────────┐     ┌─────────────┐
+│  npm / ENS  │     │ Base Sepolia│
+└─────────────┘     └─────────────┘
+```
+
+## External Services
+
+| Service | Purpose |
+|---------|---------|
+| **OpenRouter / OpenAI** | LLM inference for agents |
+| **OSV** | CVE and GHSA advisory lookup |
+| **Fileverse** | IPFS-backed report storage (dDocs protocol) |
+| **ChainPatrol** | Blocklist fallback for unregistered packages |
+| **Artificial Analysis** | Model intelligence/coding indices for weighted scoring |
+| **ENS** | Author identity resolution (forward/reverse, text records) |
+| **npm Registry** | Package metadata, tarball download |
+
+## Key Paths
+
+- **CLI entry**: <code>packages/cli/src/index.tsx</code>
+- **Scanner entry**: <code>packages/scanner/src/index.ts</code>
+- **Contract**: <code>packages/contracts/contracts/OPMRegistry.sol</code>
+- **Benchmarks**: <code>packages/core/src/benchmarks.ts</code>
+- **ZK circuit**: <code>packages/contracts/circuits/accuracy_verifier.circom</code>

@@ -1,0 +1,52 @@
+---
+title: 'opm view / opm whois'
+description: 'Author profile and published packages.'
+---
+
+# opm view / opm whois
+
+Show author profile and published packages. Resolves ENS identity and displays on-chain reputation.
+
+## Usage
+
+<CodeGroup>
+
+```bash View by ENS name
+opm view vitalik.eth
+```
+
+```bash Whois (auto-appends .eth)
+opm whois vitalik
+```
+
+</CodeGroup>
+
+<Note>
+<code>opm view &lt;name.eth&gt;</code> shows author profile. <code>opm view &lt;pkg&gt;</code> (without <code>.eth</code>) delegates to <code>opm info</code>.
+</Note>
+
+## Output
+
+### Identity
+
+- **ENS name** — Resolved identity
+- **Address** — Wallet address
+- **Bio** — ENS description text record
+- **URL** — ENS url record
+- **GitHub** — <code>com.github</code> text record
+- **Twitter** — <code>com.twitter</code> text record
+- **Email** — ENS email record
+- **Avatar** — Rendered from ENS avatar record
+
+### Author Stats
+
+- **Packages published** — Count from OPMRegistry
+- **Avg reputation** — Risk badge (lower = better)
+
+### Published Packages
+
+For each package: name, version, risk score, checksum, signature status, and report URI link.
+
+<Note>
+No environment variables are required. ENS resolution uses public resolvers.
+</Note>

@@ -47,6 +47,27 @@ contract OPMRegistry {
     event ReportURISet(string name, string version, string uri);
     event AuthorRegistered(address addr, string ensName);
     event AgentAuthorized(address agent, bool status);
+    event AgentRegistered(
+        address indexed agent,
+        string name,
+        string model,
+        bytes32 systemPromptHash,
+        bytes32 proofHash,
+        uint256 timestamp
+    );
+
+    struct RegisteredAgent {
+        address agentAddress;
+        string name;
+        string model;
+        bytes32 systemPromptHash;
+        bytes32 proofHash;
+        uint256 registeredAt;
+        bool active;
+    }
+
+    mapping(address => RegisteredAgent) public registeredAgents;
+    address[] public agentRegistry;
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -249,5 +270,47 @@ contract OPMRegistry {
         AuthorProfile storage a = authors[addr];
         if (a.reputationCount == 0) return 0;
         return a.reputationTotal / a.reputationCount;
+    }
+
+    function registerAgent(
+        string calldata name,
+        string calldata model,
+        bytes32 systemPromptHash,
+        bytes32 proofHash
+    ) external {
+        require(!authorizedAgents[msg.sender], "Agent already authorized");
+        require(registeredAgents[msg.sender].agentAddress == address(0), "Agent already registered");
+        require(proofHash != bytes32(0), "Invalid proof");
+
+        registeredAgents[msg.sender] = RegisteredAgent({
+            agentAddress: msg.sender,
+            name: name,
+            model: model,
+            systemPromptHash: systemPromptHash,
+            proofHash: proofHash,
+            registeredAt: block.timestamp,
+            active: true
+        });
+
+        agentRegistry.push(msg.sender);
+        authorizedAgents[msg.sender] = true;
+
+        emit AgentRegistered(msg.sender, name, model, systemPromptHash, proofHash, block.timestamp);
+        emit AgentAuthorized(msg.sender, true);
+    }
+
+    function getRegisteredAgent(address agent) external view returns (RegisteredAgent memory) {
+        return registeredAgents[agent];
+    }
+
+    function getAgentCount() external view returns (uint256) {
+        return agentRegistry.length;
+    }
+
+    function revokeAgent(address agent) external onlyOwner {
+        require(registeredAgents[agent].active, "Agent not active");
+        registeredAgents[agent].active = false;
+        authorizedAgents[agent] = false;
+        emit AgentAuthorized(agent, false);
     }
 }

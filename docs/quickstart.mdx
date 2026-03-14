@@ -1,0 +1,133 @@
+---
+title: 'Quickstart'
+description: 'Get OPM up and running in minutes. Install the CLI, configure environment variables, and run your first security-verified install.'
+---
+
+# Quickstart
+
+## 1. Install
+
+<CodeGroup>
+
+```bash npm
+npm i -g opmsec
+```
+
+```bash bun
+bun add -g opmsec
+```
+
+</CodeGroup>
+
+The `opm` binary is available globally after installation.
+
+## 2. Set Environment Variables
+
+<Note>
+**Read-only commands** (`install`, `audit`, `info`, `view`, `whois`, `check`) require **no configuration**. Defaults for RPC, contract address, and API URLs are built-in.
+</Note>
+
+For **author-side commands** (`push`, `register-agent`), configure:
+
+<CodeGroup>
+
+```bash .env
+# Required for opm push
+OPM_SIGNING_KEY=0x...        # Your Ethereum private key for package signing
+AGENT_PRIVATE_KEY=0x...      # Agent wallet key for score submission
+NPM_TOKEN=...                # npm automation token (optional; use --token flag otherwise)
+
+# At least one required for AI scanning
+OPENROUTER_API_KEY=...       # Multi-model access (Claude, Gemini, DeepSeek)
+# OR
+OPENAI_API_KEY=...           # Fallback (GPT-4.1 family)
+
+# Optional: report uploads to IPFS
+FILEVERSE_API_KEY=...
+```
+
+</CodeGroup>
+
+## 3. Basic Usage
+
+### Security-Verified Install
+
+<CodeGroup>
+
+```bash Install specific package
+opm install lodash
+```
+
+```bash Install with version
+opm install lodash@4.17.21
+```
+
+```bash Verify all dependencies
+opm install
+```
+
+</CodeGroup>
+
+`opm install` resolves versions against the on-chain registry, verifies ECDSA signatures, checks OSV for CVEs, and blocks installation if risk exceeds the threshold (80).
+
+### Sign, Scan, and Publish
+
+```bash
+opm push
+```
+
+Computes SHA-256 checksum, signs with your wallet, dispatches 3 AI agents in parallel, submits scores on-chain, uploads report to Fileverse, publishes to npm, and registers on OPMRegistry.
+
+### Scan Dependencies
+
+```bash
+opm check
+```
+
+Scans all `dependencies` and `devDependencies` for typosquats, CVEs, and AI-detected risks. Outputs categorized findings.
+
+### On-Chain Audit
+
+```bash
+opm audit
+```
+
+Audits all dependencies against on-chain risk scores and CVE data.
+
+### View Package Info
+
+```bash
+opm info lodash
+```
+
+Displays on-chain security metadata: author, checksum, aggregate score, report URI.
+
+### View Author Profile
+
+```bash
+opm view vitalik.eth
+```
+
+Resolves ENS identity, fetches avatar and text records, and displays on-chain author reputation and published packages.
+
+## What Happens Under the Hood
+
+### `opm push` Verification Pipeline
+
+1. **Checksum**: SHA-256 over packed tarball
+2. **Sign**: ECDSA signature with author's Ethereum private key
+3. **ENS**: Resolve author identity (Sepolia, Mainnet fallback)
+4. **AI agents**: 3 models run in parallel—static analysis, risk scoring (0–100), structured JSON
+5. **On-chain**: Agent wallets call `OPMRegistry.submitScore()`; aggregate computed; publish blocked if score ≥ 80
+6. **Fileverse**: Upload formatted markdown report (encrypted, IPFS-synced)
+7. **npm**: Publish tarball (automation token or OTP for 2FA)
+8. **Registry**: `registerPackage()` stores checksum, signature, ENS name, report URI
+
+### `opm install` Verification Pipeline
+
+1. Resolve version against on-chain registry
+2. Query OSV API for CVE/GHSA advisories (CRITICAL blocks install)
+3. Fetch on-chain risk score and agent consensus
+4. Verify ECDSA signature against tarball checksum
+5. ChainPatrol API fallback for packages not in registry
+6. Delegate to `npm install` if all gates pass
