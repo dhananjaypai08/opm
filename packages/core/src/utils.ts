@@ -1,5 +1,5 @@
 import { HIGH_RISK_THRESHOLD, MEDIUM_RISK_THRESHOLD } from './constants';
-import type { RiskLevel, AgentScanResult } from './types';
+import type { RiskLevel, AgentScanResult, SupplyChainIndicators, VersionAnalysis } from './types';
 
 export function classifyRisk(score: number): RiskLevel {
   if (score >= HIGH_RISK_THRESHOLD) return 'HIGH';
@@ -145,7 +145,7 @@ export function normalizeScanResult(raw: unknown): AgentScanResult | null {
     : [];
 
   const sci = deepFindObj(o, ['supply_chain_indicators', 'supplyChainIndicators', 'indicators']);
-  const supply_chain_indicators = sci ?? {
+  const supply_chain_indicators: SupplyChainIndicators = (sci as SupplyChainIndicators) ?? {
     has_install_scripts: false,
     has_native_bindings: false,
     has_obfuscated_code: false,
@@ -157,7 +157,7 @@ export function normalizeScanResult(raw: unknown): AgentScanResult | null {
   };
 
   const va = deepFindObj(o, ['version_analysis', 'versionAnalysis']);
-  const version_analysis = va ?? {
+  const version_analysis: VersionAnalysis = (va as VersionAnalysis) ?? {
     version_reviewed: deepFind(o, ['version', 'version_reviewed'], 'string') ?? '',
     previous_versions_reviewed: [],
     changelog_risk: 'NONE',
