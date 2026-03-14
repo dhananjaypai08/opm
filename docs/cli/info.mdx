@@ -1,11 +1,11 @@
 ---
 title: 'opm info'
-description: 'Show on-chain security information and ENS records for a package.'
+description: 'On-chain security metadata and ENS records for a package.'
 ---
 
 # opm info
 
-Show on-chain security information and ENS text records for a package. Displays author, checksum, signature, ENS name, report URI, agent scores, aggregate score, safest version, and OPM ENS records.
+Display on-chain security information for a package: author, checksum, signature, risk scores, agent assessments, audit report, and ENS records.
 
 ## Usage
 
@@ -21,42 +21,17 @@ opm info lodash@4.17.21
 
 </CodeGroup>
 
-## Output
+## What It Shows
 
-### On-Chain Data
-
-| Field | Description |
-|-------|-------------|
-| Author | Wallet address (with ENS resolution when available) |
-| Checksum | SHA-256 hash of the tarball |
-| Signature | ECDSA signature (verified or unverified) |
-| ENS name | Author identity (e.g. <code>vitalik.eth</code>) |
-| Report URI | Link to Fileverse audit report |
-| Agent scores | Per-agent risk scores and reasoning |
-| Aggregate score | Mean risk score (0-100) |
-| Safest version | Lowest-risk version in recent releases |
-
-### ENS Records
-
-If the package author has an ENS name, OPM reads and displays `opm.*` text records:
-
-| Record | Description |
-|--------|-------------|
-| `opm.version` | Latest version from ENS |
-| `opm.checksum` | Checksum from ENS text record |
-| `opm.fileverse` | Fileverse content hash (clickable link to audit report) |
-| `opm.risk_score` | Risk score from ENS |
-| `opm.signature` | Signature from ENS |
-| `opm.contract` | OPM Registry contract address |
-| `opm.packages` | All packages published by this author |
-
-Per-package records (`opm.pkg.<name>.*`) are read first, falling back to author-level records.
-
-## Links
-
-- **Fileverse report** — Full AI audit from on-chain report URI or ENS `opm.fileverse` record
-- **BaseScan** — Contract and transaction links
+- **Author** — Wallet address with ENS resolution
+- **Checksum** — SHA-256 hash of the tarball
+- **Signature** — ECDSA signature (verified/unverified status)
+- **Agent scores** — Per-agent risk scores with reasoning
+- **Aggregate score** — Mean risk across all agents
+- **Safest version** — Lowest-risk version in recent releases
+- **Report URI** — Link to Fileverse audit report
+- **ENS records** — `opm.*` text records from the author's ENS name (version, checksum, fileverse, risk score, contenthash)
 
 <Note>
-If the package is not in the OPM registry, a warning is shown. No env vars are required.
+No environment variables required. If the package isn't in the OPM registry, a warning is shown.
 </Note>

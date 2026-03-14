@@ -1,35 +1,32 @@
 ---
 title: 'opm audit'
-description: 'On-chain + CVE audit for all dependencies.'
+description: 'Quick on-chain + CVE audit for all dependencies.'
 ---
 
 # opm audit
 
-On-chain + CVE audit for all dependencies. Faster than <code>opm check</code> because it does not call AI agents.
+Fast security audit — checks on-chain scores and CVEs for all dependencies without running AI agents.
 
 ## What It Does
 
-- Scans all <code>dependencies</code> and <code>devDependencies</code> in <code>package.json</code>
 - Queries OPMRegistry for on-chain risk scores
 - Queries OSV for CVE counts
-- For packages not in the registry: checks ChainPatrol blocklist
+- Checks ChainPatrol blocklist for unregistered packages
 - Shows per-package risk level and CVE counts
 
 ## Output
 
 | Column | Description |
 |--------|-------------|
-| Package | <code>name@version</code> |
+| Package | `name@version` |
 | On-chain | Risk badge (LOW/MEDIUM/HIGH) or "not in registry" |
-| Author | Truncated wallet address (when registered) |
-| CVEs | Count of known vulnerabilities (red if HIGH/CRITICAL) |
+| Author | Truncated wallet address |
+| CVEs | Count of known vulnerabilities |
 
-Summary line: <code>X high · Y medium · Z low · W unverified · N CVEs</code>
+Summary: `X high · Y medium · Z low · W unverified · N CVEs`
 
 <Tip>
-Use <code>opm audit</code> for a quick security overview. Use <code>opm check</code> when you need AI analysis and typosquat detection.
+Use `opm audit` for a quick overview. Use `opm check` when you need AI analysis and typosquat detection.
 </Tip>
 
-## Environment Variables
-
-No environment variables are required. Uses built-in RPC and contract address.
+No environment variables required.

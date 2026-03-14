@@ -1,64 +1,35 @@
 ---
 title: 'opm view / opm whois'
-description: 'Author profile, OPM ENS records, and published packages.'
+description: 'Author profile, reputation, and published packages.'
 ---
 
 # opm view / opm whois
 
-Show author profile, OPM ENS records, and published packages. Resolves ENS identity, reads OPM text records, and displays on-chain reputation.
+Look up an author's ENS profile, OPM reputation, and published packages.
 
 ## Usage
 
 <CodeGroup>
 
-```bash View by ENS name
-opm view vitalik.eth
+```bash By ENS name
+opm view djpai.eth
 ```
 
 ```bash Whois (auto-appends .eth)
-opm whois vitalik
+opm whois djpai
 ```
 
 </CodeGroup>
 
 <Note>
-<code>opm view &lt;name.eth&gt;</code> shows author profile. <code>opm view &lt;pkg&gt;</code> (without <code>.eth</code>) delegates to <code>opm info</code>.
+`opm view <name.eth>` shows author profile. `opm view <pkg>` (without `.eth`) delegates to `opm info`.
 </Note>
 
-## Output
+## What It Shows
 
-### Identity
+- **Identity** — ENS name, wallet address, bio, URL, GitHub, Twitter, email, avatar
+- **Author stats** — Packages published, average reputation score
+- **OPM ENS records** — `opm.version`, `opm.fileverse`, `opm.risk_score`, `opm.packages`, contenthash
+- **Published packages** — Name, version, risk score, checksum, signature status, report link
 
-- **ENS name** — Resolved identity
-- **Address** — Wallet address
-- **Bio** — ENS description text record
-- **URL** — ENS url record
-- **GitHub** — <code>com.github</code> text record
-- **Twitter** — <code>com.twitter</code> text record
-- **Email** — ENS email record
-- **Avatar** — Rendered from ENS avatar record
-
-### Author Stats
-
-- **Packages published** — Count from OPMRegistry
-- **Avg reputation** — Risk badge (lower = better)
-
-### OPM ENS Records
-
-If the author has published via OPM, the following text records are displayed:
-
-- **opm.version** — Latest version published
-- **opm.checksum** — Tarball checksum
-- **opm.fileverse** — Fileverse content hash / report URI (clickable link)
-- **opm.risk_score** — Aggregate risk score
-- **opm.signature** — ECDSA signature
-- **opm.contract** — OPM Registry contract address (clickable BaseScan link)
-- **opm.packages** — Comma-separated list of all packages published by this author
-
-### Published Packages
-
-For each package: name, version, risk score, checksum, signature status, and report URI link.
-
-<Note>
-No environment variables are required. ENS resolution and text record reading use public resolvers.
-</Note>
+No environment variables required. Uses public ENS resolvers.

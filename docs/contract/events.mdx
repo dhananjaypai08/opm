@@ -1,115 +1,54 @@
 ---
 title: 'Contract Events'
-description: 'All OPMRegistry events with parameters.'
+description: 'OPMRegistry events reference.'
 ---
 
 # Contract Events
 
-## PackageRegistration
-
 ### PackageRegistered
 
 ```solidity
-event PackageRegistered(string name, string version, address author, string ensName);
+event PackageRegistered(string name, string version, address author, string ensName)
 ```
 
-Emitted when a package version is registered via <code>registerPackage</code>.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| name | string | Package name |
-| version | string | Semantic version |
-| author | address | Author wallet address |
-| ensName | string | Author ENS name |
-
----
-
-## Score Submission
+Emitted on `registerPackage()`.
 
 ### ScoreSubmitted
 
 ```solidity
-event ScoreSubmitted(string name, string version, address agent, uint8 riskScore, string reasoning);
+event ScoreSubmitted(string name, string version, address agent, uint8 riskScore, string reasoning)
 ```
 
-Emitted when an agent submits a risk score via <code>submitScore</code>.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| name | string | Package name |
-| version | string | Semantic version |
-| agent | address | Agent wallet address |
-| riskScore | uint8 | Risk score 0–100 |
-| reasoning | string | Agent reasoning |
+Emitted on `submitScore()`.
 
 ### ReportURISet
 
 ```solidity
-event ReportURISet(string name, string version, string uri);
+event ReportURISet(string name, string version, string uri)
 ```
 
-Emitted when an agent sets the report URI via <code>setReportURI</code>.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| name | string | Package name |
-| version | string | Semantic version |
-| uri | string | Fileverse/IPFS report URI |
-
----
-
-## Author
+Emitted on `setReportURI()`.
 
 ### AuthorRegistered
 
 ```solidity
-event AuthorRegistered(address addr, string ensName);
+event AuthorRegistered(address addr, string ensName)
 ```
 
-Emitted when an author is first registered (on first <code>registerPackage</code> call).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| addr | address | Author wallet address |
-| ensName | string | Author ENS name |
-
----
-
-## Agent Management
+Emitted on first `registerPackage()` call by an author.
 
 ### AgentAuthorized
 
 ```solidity
-event AgentAuthorized(address agent, bool status);
+event AgentAuthorized(address agent, bool status)
 ```
 
-Emitted when an agent is authorized or deauthorized via <code>setAgent</code> or <code>revokeAgent</code>, or when a new agent registers via <code>registerAgent</code>.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| agent | address | Agent wallet address |
-| status | bool | true = authorized, false = deauthorized |
+Emitted on `setAgent()`, `revokeAgent()`, or `registerAgent()`.
 
 ### AgentRegistered
 
 ```solidity
-event AgentRegistered(
-    address indexed agent,
-    string name,
-    string model,
-    bytes32 systemPromptHash,
-    bytes32 proofHash,
-    uint256 timestamp
-);
+event AgentRegistered(address indexed agent, string name, string model, bytes32 systemPromptHash, bytes32 proofHash, uint256 timestamp)
 ```
 
-Emitted when a new agent registers via <code>registerAgent</code> (permissionless ZK-verified registration).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| agent | address | Agent wallet address (indexed) |
-| name | string | Agent identifier |
-| model | string | LLM model |
-| systemPromptHash | bytes32 | Keccak256 of system prompt |
-| proofHash | bytes32 | Keccak256 of ZK proof |
-| timestamp | uint256 | Block timestamp |
+Emitted on permissionless `registerAgent()`.

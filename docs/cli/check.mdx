@@ -1,44 +1,30 @@
 ---
 title: 'opm check'
-description: 'Comprehensive dependency security scan.'
+description: 'Full dependency security scan with AI agents.'
 ---
 
 # opm check
 
-Comprehensive dependency security scan. Scans all dependencies in <code>package.json</code>, runs AI agents, and optionally uploads a report to Fileverse.
+Scans all dependencies for typosquats, CVEs, on-chain risk, and AI-detected threats. Optionally uploads a report to Fileverse.
 
 ## What It Scans
 
-<AccordionGroup>
-  <Accordion title="Typosquat detection">
-    Uses Levenshtein distance against top npm packages to detect likely typosquats (e.g. <code>lodahs</code> → <code>lodash</code>).
-  </Accordion>
-  <Accordion title="CVE lookup (OSV)">
-    Queries the OSV API for known vulnerabilities per package and version.
-  </Accordion>
-  <Accordion title="On-chain score lookup">
-    Fetches aggregate risk scores from OPMRegistry for registered packages.
-  </Accordion>
-  <Accordion title="AI agent analysis">
-    Three agents analyze the full dependency list in parallel. Each produces findings, severity, and suggested replacements.
-  </Accordion>
-</AccordionGroup>
-
-## Report Upload
-
-When <code>FILEVERSE_API_KEY</code> is set, the scan report is uploaded to Fileverse (IPFS). The report URI can be set on-chain for packages you publish.
+- **Typosquats** — Levenshtein distance against top npm packages
+- **CVEs** — OSV API lookup for known vulnerabilities per package/version
+- **On-chain scores** — Aggregate risk from OPMRegistry for registered packages
+- **AI analysis** — 3 agents analyze the full dependency list in parallel, producing severity ratings and suggested replacements
 
 ## Output
 
-- **Per-dependency results**: Typosquats, CVE counts, on-chain scores, fix versions
-- **AI agent findings**: Per-agent analysis with severity and suggested replacements
-- **Overall assessment**: Summary counts (typosquats, CVEs, high-risk, AI flags)
-- **Report link**: Fileverse URL when upload succeeds
+- Per-dependency results: typosquats, CVE counts, on-chain scores, fix versions
+- AI agent findings with severity and suggested replacements
+- Summary: total typosquats, CVEs, high-risk, AI flags
+- Fileverse report link when upload succeeds
 
 <Note>
-<code>opm check</code> requires <code>OPENROUTER_API_KEY</code> or <code>OPENAI_API_KEY</code> for AI agent analysis. Without them, typosquat and CVE checks still run, but agent analysis is skipped.
+Requires `OPENROUTER_API_KEY` or `OPENAI_API_KEY` for AI analysis. Without them, typosquat and CVE checks still run.
 </Note>
 
 <Tip>
-Run <code>opm fix</code> to auto-correct typosquats and vulnerable versions identified by <code>opm check</code>.
+Run `opm fix` to auto-apply the fixes identified by `opm check`.
 </Tip>

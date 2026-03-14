@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Copy, Check } from "lucide-react"
+import Image from "next/image"
 
 const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.opm.dev";
 const GITHUB_URL = "https://github.com/dhananjaypai08/opm";
@@ -152,6 +153,10 @@ export default function OPMTerminal() {
             </div>
 
             <div className="hidden md:flex items-center gap-8 ml-8">
+              <a href="#why" className="text-gray-400 hover:text-white transition-colors cursor-pointer relative group">
+                <span>Why OPM?</span>
+                <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></div>
+              </a>
               <a href="#features" className="text-gray-400 hover:text-white transition-colors cursor-pointer relative group">
                 <span>Features</span>
                 <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></div>
@@ -378,6 +383,189 @@ export default function OPMTerminal() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Why OPM — Real incidents */}
+      <section className="px-6 py-24 lg:px-12 border-t border-gray-800 relative overflow-hidden" id="why">
+        <div className="absolute inset-0 bg-gradient-to-b from-red-950/10 via-transparent to-transparent pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 border border-red-900/60 bg-red-950/30 text-red-400 text-xs font-mono tracking-widest uppercase mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              Active Threat Landscape
+            </div>
+            <h2 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight">
+              This is happening<br />
+              <span className="text-red-400">right now.</span>
+            </h2>
+            <p className="text-lg text-gray-400 max-w-2xl mx-auto">
+              Supply chain attacks on npm aren&apos;t theoretical. Developers are losing money, shipping CVEs, and installing malware — every single week.
+            </p>
+          </div>
+
+          {/* Stats bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-800 max-w-4xl mx-auto mb-16">
+            {[
+              { num: "6,847", label: "Malicious packages", sub: "removed from npm in 2025" },
+              { num: "$15M+", label: "Developer losses", sub: "from wallet drainer packages" },
+              { num: "23%", label: "Projects affected", sub: "by known CVEs in deps" },
+              { num: "4 hrs", label: "Avg time to detect", sub: "a supply chain attack" },
+            ].map((stat, i) => (
+              <div key={i} className="bg-black p-6 text-center group hover:bg-gray-950 transition-colors">
+                <p className="text-2xl lg:text-3xl font-bold text-white mb-1 group-hover:text-red-400 transition-colors">{stat.num}</p>
+                <p className="text-sm text-gray-300 font-medium">{stat.label}</p>
+                <p className="text-xs text-gray-600 mt-1">{stat.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Incident cards */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 max-w-6xl mx-auto">
+            {/* Large card — PhantomRaven attack */}
+            <div className="md:col-span-7 group relative">
+              <div className="absolute inset-0 bg-red-950/20 transform rotate-[0.5deg] group-hover:rotate-0 transition-transform duration-500" />
+              <div className="relative bg-gray-950 border border-gray-800 group-hover:border-red-900/50 transition-all duration-500 overflow-hidden">
+                <div className="px-4 py-2.5 bg-gray-900 border-b border-gray-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-red-500" />
+                    <span className="text-xs text-gray-400 font-mono">cyberpress.org — March 2026</span>
+                  </div>
+                  <span className="text-[10px] text-red-400 font-mono tracking-wider uppercase">Supply Chain Attack</span>
+                </div>
+                <div className="relative aspect-[16/9] overflow-hidden">
+                  <Image
+                    src="/phantomraven-npm-attack.png"
+                    alt="PhantomRaven malware targeting npm supply chain"
+                    fill
+                    className="object-cover object-top opacity-90 group-hover:opacity-100 group-hover:scale-[1.02] transition-all duration-700"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-transparent" />
+                </div>
+                <div className="p-5">
+                  <h3 className="text-lg font-bold text-white mb-1">PhantomRaven Targets npm Supply Chain</h3>
+                  <p className="text-sm text-gray-400">Malware campaign targeting developer secrets through typosquatted packages. Thousands of downloads before detection.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right column — stacked */}
+            <div className="md:col-span-5 flex flex-col gap-4">
+              {/* Wallet drain */}
+              <div className="group relative flex-1">
+                <div className="relative bg-gray-950 border border-gray-800 group-hover:border-red-900/50 transition-all duration-500 overflow-hidden h-full">
+                  <div className="px-4 py-2.5 bg-gray-900 border-b border-gray-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-red-500" />
+                      <span className="text-xs text-gray-400 font-mono">@imanishbarnwal</span>
+                    </div>
+                    <span className="text-[10px] text-red-400 font-mono tracking-wider uppercase">Funds Lost</span>
+                  </div>
+                  <div className="relative aspect-[16/10] overflow-hidden">
+                    <Image
+                      src="/wallet-drain-exploit.png"
+                      alt="Developer lost money from silent dev environment exploit"
+                      fill
+                      className="object-cover object-top opacity-90 group-hover:opacity-100 group-hover:scale-[1.02] transition-all duration-700"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-transparent" />
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm text-gray-300 font-medium">&ldquo;I lost a significant amount of money due to a silent, zero-interaction dev environment exploit.&rdquo;</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom row — 3 cards */}
+            <div className="md:col-span-4 group relative">
+              <div className="relative bg-gray-950 border border-gray-800 group-hover:border-orange-900/50 transition-all duration-500 overflow-hidden">
+                <div className="px-4 py-2.5 bg-gray-900 border-b border-gray-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-orange-500" />
+                    <span className="text-xs text-gray-400 font-mono">@nextjs — 213K views</span>
+                  </div>
+                  <span className="text-[10px] text-orange-400 font-mono tracking-wider uppercase">CVE</span>
+                </div>
+                <div className="relative aspect-[4/3] overflow-hidden">
+                  <Image
+                    src="/nextjs-cve-announcement.png"
+                    alt="Next.js critical CVE-2025-66478 announcement"
+                    fill
+                    className="object-cover object-top opacity-90 group-hover:opacity-100 group-hover:scale-[1.02] transition-all duration-700"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-transparent" />
+                </div>
+                <div className="p-4">
+                  <p className="text-xs text-gray-400">Critical vulnerability in React Server Components affecting Next.js. 213K+ views.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="md:col-span-4 group relative">
+              <div className="relative bg-gray-950 border border-gray-800 group-hover:border-yellow-900/50 transition-all duration-500 overflow-hidden">
+                <div className="px-4 py-2.5 bg-gray-900 border-b border-gray-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-yellow-500" />
+                    <span className="text-xs text-gray-400 font-mono">@trashh_dev</span>
+                  </div>
+                  <span className="text-[10px] text-yellow-400 font-mono tracking-wider uppercase">React CVE</span>
+                </div>
+                <div className="relative aspect-[4/3] overflow-hidden">
+                  <Image
+                    src="/react-cve-meme.png"
+                    alt="Developer reaction to React CVE announcement"
+                    fill
+                    className="object-cover object-top opacity-90 group-hover:opacity-100 group-hover:scale-[1.02] transition-all duration-700"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-transparent" />
+                </div>
+                <div className="p-4">
+                  <p className="text-xs text-gray-400">How developers react to yet another critical CVE in their dependency tree.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="md:col-span-4 group relative">
+              <div className="relative bg-gray-950 border border-gray-800 group-hover:border-gray-600 transition-all duration-500 overflow-hidden">
+                <div className="px-4 py-2.5 bg-gray-900 border-b border-gray-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-500" />
+                    <span className="text-xs text-gray-400 font-mono">@arsh_goyal</span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 font-mono tracking-wider uppercase">Reality Check</span>
+                </div>
+                <div className="relative aspect-[4/3] overflow-hidden">
+                  <Image
+                    src="/dependency-bottleneck.png"
+                    alt="Dependency management is the bottleneck"
+                    fill
+                    className="object-cover object-top opacity-90 group-hover:opacity-100 group-hover:scale-[1.02] transition-all duration-700"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-transparent" />
+                </div>
+                <div className="p-4">
+                  <p className="text-xs text-gray-400">&ldquo;Code generation isn&apos;t the bottleneck anymore. Dependency management is.&rdquo;</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* CTA after incidents */}
+          <div className="text-center mt-16">
+            <div className="inline-flex flex-col items-center gap-4">
+              <p className="text-lg text-gray-400">
+                OPM catches these before they reach your <span className="text-white font-mono">node_modules</span>.
+              </p>
+              <div className="flex items-center gap-3 text-sm font-mono text-gray-500">
+                <span className="text-green-400">$</span>
+                <span className="text-white">npm install -g opmsec</span>
+                <span className="text-gray-600">&&</span>
+                <span className="text-white">opm install</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>

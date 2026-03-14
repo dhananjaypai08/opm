@@ -5,67 +5,55 @@ description: 'Install packages with on-chain security verification.'
 
 # opm install
 
-Install packages with on-chain security verification. OPM runs a verification pipeline before delegating to npm.
+Install packages with on-chain verification, CVE checks, and signature validation.
 
 ## Usage
 
 <CodeGroup>
 
-```bash Install specific package
+```bash Single package
 opm install lodash
 ```
 
-```bash Install with version
+```bash Specific version
 opm install lodash@4.17.21
 ```
 
-```bash Install all dependencies
+```bash ENS-based version
+opm install express@djpai.eth
+```
+
+```bash All dependencies
 opm install
 ```
 
 </CodeGroup>
 
-## Aliases
-
-- <code>opm i</code> — same as <code>opm install</code>
-- <code>opm add</code> — same as <code>opm install</code>
+**Aliases**: `opm i`, `opm add`
 
 ## Verification Pipeline
 
-<AccordionGroup>
-  <Accordion title="CVE check (OSV)">
-    Queries the OSV API for known CVEs and GHSA advisories. **CRITICAL** CVEs block installation.
-  </Accordion>
-  <Accordion title="On-chain score lookup">
-    Fetches aggregate risk score from OPMRegistry. Blocks if score ≥ 70.
-  </Accordion>
-  <Accordion title="Signature verification">
-    Verifies ECDSA signature against tarball checksum for packages in the registry.
-  </Accordion>
-  <Accordion title="ChainPatrol blocklist">
-    For packages not in the OPM registry, falls back to ChainPatrol API. BLOCKED status prevents install.
-  </Accordion>
-</AccordionGroup>
+1. **CVE check** — Queries OSV for known vulnerabilities. CRITICAL CVEs block install.
+2. **On-chain score** — Fetches aggregate risk from OPMRegistry. Score ≥ 70 blocks install.
+3. **Signature verification** — Verifies ECDSA signature against tarball checksum.
+4. **ChainPatrol** — Blocklist fallback for packages not in the registry.
 
-## Blocking Rules
+If all gates pass, delegates to `npm install`.
+
+## ENS Version Resolution
+
+When you specify an ENS name as a version (e.g. `express@djpai.eth`), OPM:
+
+1. Resolves the ENS name to an Ethereum address
+2. Verifies the author is registered on-chain
+3. Fetches the safest version from the registry
+4. Checks for CVEs and auto-bumps to a safe version if needed
+5. Updates `package.json` with the resolved version
 
 <Warning>
-Installation is **blocked** if:
-- Risk score ≥ 70 (on-chain)
-- Any CRITICAL CVE is present (OSV)
-- ChainPatrol returns BLOCKED (for unregistered packages)
+Installation is **blocked** if risk score ≥ 70, any CRITICAL CVE exists, or ChainPatrol returns BLOCKED.
 </Warning>
 
-## Fallback Behavior
-
 <Note>
-If a package is **not in the OPM registry**, OPM falls back to standard <code>npm install</code> with a warning. ChainPatrol is consulted when available.
+No environment variables needed. Defaults for RPC and contract address are built-in.
 </Note>
-
-## Environment Variables
-
-No environment variables are required for basic install. Defaults for RPC, contract address, and API URLs are built-in.
-
-<Tip>
-For bulk install (<code>opm install</code> with no args), all <code>dependencies</code> and <code>devDependencies</code> are scanned in parallel before npm install runs.
-</Tip>

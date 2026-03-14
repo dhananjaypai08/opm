@@ -1,58 +1,40 @@
 ---
 title: 'Multi-Agent Consensus'
-description: 'Three LLMs run in parallel, submit scores on-chain, and aggregate via intelligence-weighted averaging.'
+description: 'Three LLMs scan in parallel, submit scores on-chain, aggregate via intelligence-weighted averaging.'
 ---
 
 # Multi-Agent Consensus
 
-OPM uses **three heterogeneous AI agents** that run in parallel to analyze packages. Each agent independently evaluates source code, version history, and CVE data, then submits its risk score and reasoning on-chain. Scores are aggregated using **intelligence-weighted averaging** to produce a final risk assessment.
+Three different AI models analyze every package in parallel. Each submits an independent risk score on-chain. Scores are aggregated using intelligence-weighted averaging.
 
-## Agent Configuration
+## Agent Lineup
 
-| Agent | OpenRouter (preferred) | OpenAI (fallback) |
-|-------|------------------------|--------------------|
+| Agent | OpenRouter | OpenAI fallback |
+|-------|-----------|----------------|
 | agent-1 | Claude Sonnet 4 | GPT-4.1 |
 | agent-2 | Gemini 2.5 Flash | GPT-4.1 Mini |
 | agent-3 | DeepSeek Chat | GPT-4.1 Nano |
 
-Model diversity reduces single-model blind spots and improves consensus reliability. Override models via `AGENT1_MODEL`, `AGENT2_MODEL`, and `AGENT3_MODEL`.
+Model diversity reduces single-model blind spots. Override via `AGENT1_MODEL`, `AGENT2_MODEL`, `AGENT3_MODEL`.
 
-## Analysis Pipeline
+## What Each Agent Does
 
-Each agent receives:
+1. Receives package source, `package.json`, version history, and any known CVEs
+2. Produces structured JSON: risk score (0-100), risk level, reasoning, vulnerability list, supply chain indicators
+3. Submits score on-chain via `OPMRegistry.submitScore()`
 
-- Packed tarball contents (scannable extensions: `.js`, `.ts`, `.mjs`, `.cjs`, `.json`)
-- `package.json` and dependency metadata
-- Version history and changelog context
-- CVE/OSV advisory data when available
+Each agent scores a version only once.
 
-Each agent produces structured JSON:
+## Intelligence-Weighted Scoring
 
-- **Risk score** (0–100) with categorical classification (LOW, MEDIUM, HIGH, CRITICAL)
-- **Vulnerability enumeration** with severity, category, file path, and evidence
-- **Supply chain indicators**: install scripts, native bindings, obfuscated code, network calls, filesystem access, process spawning, `eval` usage, environment variable access
-- **Version history analysis**: changelog risk, maintainer changes, dependency graph mutations
-- **Recommendation**: SAFE, CAUTION, WARN, or BLOCK
-
-## On-Chain Submission
-
-Agent wallets call `OPMRegistry.submitScore(name, version, riskScore, reasoning)` for each package version. Each agent may submit only once per version. Scores are stored in the contract's `versionData` mapping.
-
-## Intelligence-Weighted Aggregation
-
-Scores are aggregated using model weights from the **Artificial Analysis API**:
-
-- **Intelligence Index**: General reasoning and knowledge
-- **Coding Index**: Code generation and analysis capability
-
-Weights are applied to each agent's score before computing the mean. This favors higher-capability models when consensus is ambiguous.
+When `ARTIFICIAL_ANALYSIS_API_KEY` is set, scores are weighted by each model's Intelligence Index and Coding Index from the Artificial Analysis API. Higher-capability models carry more weight in the final score.
 
 <Note>
-If `ARTIFICIAL_ANALYSIS_API_KEY` is unset or the API is unavailable, OPM falls back to **equal weighting** (simple arithmetic mean).
+Without the API key, agents are weighted equally (simple mean).
 </Note>
 
-## Fallback Behavior
+## Provider Routing
 
-- **Provider**: When `OPENROUTER_API_KEY` is set, OPM routes through OpenRouter. Otherwise it uses `OPENAI_API_KEY` with the GPT-4.1 family.
-- **Force provider**: Set `LLM_PROVIDER=openrouter` or `LLM_PROVIDER=openai` to override auto-detection.
-- **OpenAI models**: `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.4` for agent-1, agent-2, agent-3 respectively.
+- `OPENROUTER_API_KEY` set → routes through OpenRouter (multi-model)
+- Only `OPENAI_API_KEY` → falls back to GPT-4.1 family
+- Force a provider: `LLM_PROVIDER=openrouter` or `LLM_PROVIDER=openai`

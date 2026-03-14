@@ -5,49 +5,23 @@ description: 'Scan queue, parallel execution, and integrations.'
 
 # Scanner Engine
 
-The scanner is the core security analysis engine. It coordinates package data fetching, LLM calls, and on-chain score submission.
+The scanner coordinates package data fetching, LLM calls, and on-chain score submission.
 
-## Memory Queue with Deduplication
+## Scan Queue
 
-Scans are enqueued via <code>enqueueScan(packageName, version, onStatus?, options?)</code>. The queue:
+Scans are enqueued via `enqueueScan(packageName, version)`. The queue deduplicates concurrent scans for the same `name@version` and supports local tarball context for pre-publish scans.
 
-- Deduplicates concurrent scans for the same <code>name@version</code>
-- Supports local tarball context for pre-publish scans (no npm download)
+## Parallel Execution
 
-## Parallel Agent Execution
-
-Agents run in parallel via <code>Promise.allSettled</code>:
-
-- Each agent fetches package data, queries OSV, calls the LLM, and submits its score on-chain
-- Failures in one agent do not block others
-- Aggregate score is the mean of successful submissions (intelligence-weighted when Artificial Analysis API is configured)
+Agents run via `Promise.allSettled` — failures in one agent don't block others. The aggregate score is the mean of successful submissions, intelligence-weighted when the Artificial Analysis API is configured.
 
 ## Source Code Extraction
 
-<AccordionGroup>
-  <Accordion title="From npm tarball">
-    Downloads the tarball from the npm registry, extracts to a temp directory, and reads scannable files (<code>.js</code>, <code>.ts</code>, <code>.mjs</code>, <code>.cjs</code>, <code>.json</code>).
-  </Accordion>
-  <Accordion title="From local tarball">
-    When <code>opm push</code> runs, the packed tarball path is passed. The scanner extracts source from the local file instead of downloading from npm.
-  </Accordion>
-</AccordionGroup>
+- **From npm**: Downloads tarball, extracts to temp dir, reads scannable files (`.js`, `.ts`, `.mjs`, `.cjs`, `.json`)
+- **From local**: During `opm push`, the packed tarball path is passed directly
 
-## NPM Registry Integration
+## Integrations
 
-- **Metadata**: Package name, version, description, dependencies, scripts
-- **Version history**: Recent versions with publish dates and change summaries
-- **Tarball URL**: Fetched from <code>versions[version].dist.tarball</code>
-
-## Fileverse Upload
-
-Audit reports are formatted as Markdown and uploaded via the Fileverse API. The returned URI is set on-chain via <code>setReportURI</code>. Requires <code>FILEVERSE_API_KEY</code>.
-
-## Contract Writer
-
-The scanner's contract writer:
-
-- **submitScoreOnChain**: Calls <code>OPMRegistry.submitScore()</code> with agent wallet
-- **setReportURIOnChain**: Calls <code>OPMRegistry.setReportURI()</code>
-
-Both require the agent to be authorized (owner-set or ZK-verified).
+- **npm registry** — Package metadata, version history, tarball URL
+- **Fileverse** — Audit reports formatted as Markdown, uploaded via API, URI set on-chain
+- **Contract writer** — `submitScore()` and `setReportURI()` calls with agent wallet

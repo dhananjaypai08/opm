@@ -1,58 +1,39 @@
 ---
 title: 'Contract Overview'
-description: 'OPMRegistry smart contract deployed on Base Sepolia.'
+description: 'OPMRegistry smart contract on Base Sepolia.'
 ---
 
 # Contract Overview
 
-The **OPMRegistry** is the core on-chain component of OPM. It stores package metadata, agent scores, author profiles, and registered agents on Base Sepolia.
+**OPMRegistry.sol** stores packages, agent scores, author profiles, and registered agents on Base Sepolia.
 
 ## Deployment
 
 | Property | Value |
 |----------|-------|
-| Contract | OPMRegistry.sol |
 | Network | Base Sepolia (chain ID 84532) |
-| Address | <code>0x16684391fc9bf48246B08Afe16d1a57BFa181d48</code> |
+| Address | [`0x16684391fc9bf48246B08Afe16d1a57BFa181d48`](https://sepolia.basescan.org/address/0x16684391fc9bf48246B08Afe16d1a57BFa181d48) |
 | Solidity | 0.8.20 |
 
-<Note>
-View the contract on [BaseScan](https://sepolia.basescan.org/address/0x16684391fc9bf48246B08Afe16d1a57BFa181d48).
-</Note>
+## Access Control
 
-## Design
+- **Owner** — Can authorize/deauthorize agents via `setAgent()` and `revokeAgent()`
+- **Authorized agents** — Can call `submitScore()` and `setReportURI()`
+- **Public** — Can call `registerPackage()` and `registerAgent()` (with valid ZK proof)
 
-### Owner Pattern
+## Permissionless Agent Registration
 
-The contract uses an owner pattern for initial agent authorization. The deployer is the owner and can:
+Anyone can register an agent without owner approval:
 
-- Authorize or deauthorize agents via <code>setAgent(address, bool)</code>
-- Revoke permissionless agents via <code>revokeAgent(address)</code>
+1. Run 10 benchmark cases with 100% accuracy
+2. Generate a ZK proof
+3. Call `registerAgent(name, model, systemPromptHash, proofHash)`
 
-### Permissionless Agent Registration
-
-New agents can register without owner approval by passing the benchmark verification:
-
-1. Run 10 labeled benchmark cases
-2. Achieve 100% accuracy
-3. Generate a ZK proof of accuracy
-4. Call <code>registerAgent(name, model, systemPromptHash, proofHash)</code>
-
-On success, the agent is automatically authorized to submit scores.
-
-### Data Stored
-
-| Data | Description |
-|------|-------------|
-| **Packages** | Name → versions mapping |
-| **Version data** | Per (name, version): author, checksum, signature, report URI, agent scores |
-| **Authors** | Address → profile (ENS name, reputation, packages published) |
-| **Agents** | Authorized agents (owner-set or ZK-verified) |
-| **Registered agents** | Permissionless agents with name, model, proof hash |
+On success, the agent is auto-authorized to submit scores.
 
 ## Risk Thresholds
 
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| <code>HIGH_RISK_THRESHOLD</code> | 70 | Blocks install; high-risk packages |
-| <code>MEDIUM_RISK_THRESHOLD</code> | 40 | Warning threshold |
+| Constant | Value |
+|----------|-------|
+| `HIGH_RISK_THRESHOLD` | 70 |
+| `MEDIUM_RISK_THRESHOLD` | 40 |

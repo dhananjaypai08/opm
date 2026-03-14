@@ -1,40 +1,11 @@
 ---
 title: 'opm push'
-description: 'Sign, scan, publish, register on-chain, and write ENS records.'
+description: 'Sign, scan, publish, register on-chain, write ENS records.'
 ---
 
 # opm push
 
-Sign, scan, publish, register a package on-chain, and write package metadata to ENS text records. The full verification pipeline runs before publishing to npm and registering on the OPMRegistry.
-
-## What It Does
-
-<Steps>
-  <Step title="Pack tarball">
-    Creates an npm tarball via <code>npm pack</code> and computes SHA-256 checksum over the packed file.
-  </Step>
-  <Step title="Sign checksum">
-    Signs the checksum with ECDSA (secp256k1) using your <code>OPM_SIGNING_KEY</code>.
-  </Step>
-  <Step title="Resolve ENS">
-    Resolves your wallet address to an ENS name (Base Sepolia, then Ethereum Mainnet fallback).
-  </Step>
-  <Step title="Security scan">
-    Runs 3 AI agents in parallel (Claude, Gemini, DeepSeek) to analyze the package. Each agent submits a risk score (0-100) and reasoning on-chain.
-  </Step>
-  <Step title="Risk check">
-    If aggregate score ≥ 80 or risk level is CRITICAL, publishing is blocked.
-  </Step>
-  <Step title="Publish to npm">
-    Publishes the tarball to the npm registry (uses <code>--token</code> or <code>NPM_TOKEN</code> for automation).
-  </Step>
-  <Step title="Register on-chain">
-    Calls <code>OPMRegistry.registerPackage()</code> with package name, version, checksum, signature, and ENS name.
-  </Step>
-  <Step title="Write ENS records">
-    Writes package metadata to the author's ENS text records: <code>opm.version</code>, <code>opm.checksum</code>, <code>opm.fileverse</code>, <code>opm.risk_score</code>, <code>opm.signature</code>, <code>opm.packages</code>. Also creates a package subname (e.g. <code>express.djpai.eth</code>) if the author owns the parent name.
-  </Step>
-</Steps>
+The full publish pipeline: sign your package, scan with 3 AI agents, publish to npm, register on-chain, upload audit report, and write ENS text records.
 
 ## Usage
 
@@ -54,69 +25,58 @@ opm push --otp <code>
 
 </CodeGroup>
 
+## What Happens
+
+<Steps>
+  <Step title="Pack & sign">
+    Creates tarball via `npm pack`, computes SHA-256 checksum, signs with ECDSA using `OPM_SIGNING_KEY`.
+  </Step>
+  <Step title="Resolve ENS">
+    Resolves your wallet to an ENS name (Sepolia → Mainnet fallback).
+  </Step>
+  <Step title="AI scan">
+    3 agents (Claude, Gemini, DeepSeek) analyze in parallel. Each submits a risk score on-chain.
+  </Step>
+  <Step title="Risk gate">
+    Aggregate score ≥ 80 or CRITICAL → **publish blocked**.
+  </Step>
+  <Step title="Publish to npm">
+    Publishes tarball to the npm registry.
+  </Step>
+  <Step title="Register on-chain">
+    Calls `OPMRegistry.registerPackage()` with checksum, signature, ENS name.
+  </Step>
+  <Step title="Upload report">
+    Formatted markdown report uploaded to Fileverse (IPFS-backed, encrypted).
+  </Step>
+  <Step title="Write ENS records">
+    Sets `opm.version`, `opm.checksum`, `opm.fileverse`, `opm.risk_score`, and more on your ENS name. Creates package subname (e.g. `express.djpai.eth`) if you own the parent. Sets contenthash to Fileverse IPFS CID.
+  </Step>
+</Steps>
+
 ## Required Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
-| `OPM_SIGNING_KEY` | Ethereum private key for package signing (ECDSA) |
-| `OPENROUTER_API_KEY` or `OPENAI_API_KEY` | At least one required for AI agent scanning |
-| `AGENT_PRIVATE_KEY` | Agent wallet for submitting scores on-chain (must hold Base Sepolia ETH for gas) |
+| `OPM_SIGNING_KEY` | Ethereum private key for ECDSA signing |
+| `OPENROUTER_API_KEY` or `OPENAI_API_KEY` | AI agent scanning |
+| `AGENT_PRIVATE_KEY` | Agent wallet for on-chain score submission (needs Base Sepolia ETH) |
 
-## Optional Environment Variables
+## Optional
 
 | Variable | Purpose |
 |----------|---------|
-| `NPM_TOKEN` | npm automation token (alternative to <code>--token</code> flag) |
-| `FILEVERSE_API_KEY` | Upload audit report to IPFS via Fileverse |
-
-## Risk Blocking
+| `NPM_TOKEN` | npm automation token (alternative to `--token` flag) |
+| `FILEVERSE_API_KEY` | Audit report uploads |
 
 <Warning>
-Packages with **risk score ≥ 80** or **CRITICAL** level are blocked from publishing. The scan step fails, npm publish is skipped, and on-chain registration does not occur.
+Packages with **risk score ≥ 80** are blocked. The scan fails, npm publish is skipped, and no on-chain registration occurs.
 </Warning>
-
-When blocked, the CLI shows which agents scored the package and the aggregate risk. Fix the issues and run <code>opm push</code> again.
-
-## What Gets Stored On-Chain
-
-After a successful push, the following data is recorded on the OPMRegistry:
-
-| Data | Description |
-|------|-------------|
-| Package name | From <code>package.json</code> |
-| Version | Semantic version |
-| Checksum | SHA-256 hash of the tarball |
-| Signature | ECDSA signature of the checksum |
-| ENS name | Author identity (e.g. <code>vitalik.eth</code>) |
-| Agent scores | Per-agent risk scores and reasoning |
-| Report URI | Fileverse/IPFS link to the full audit report |
-
-## What Gets Written to ENS
-
-If the author has an ENS name and the signing key owns it, the following text records are set:
-
-| Record | Value |
-|--------|-------|
-| `opm.version` | Package version |
-| `opm.checksum` | SHA-256 checksum |
-| `opm.fileverse` | Fileverse report URI (content hash) |
-| `opm.risk_score` | Aggregate risk score |
-| `opm.signature` | ECDSA signature |
-| `opm.contract` | OPM Registry contract address |
-| `opm.packages` | Comma-separated list of all published packages |
-| `opm.pkg.<name>.version` | Per-package version |
-| `opm.pkg.<name>.fileverse` | Per-package Fileverse hash |
-
-Records are batched via `multicall` when the resolver supports it.
 
 ## Output
 
-- **Etherscan links** for every transaction: score submissions (one per agent) and package registration
-- **ENS record transaction** link on Ethereum Sepolia/Mainnet
-- **Report URI** link when uploaded to Fileverse
-- **npm package URL** on successful publish
-- **Subname** created (e.g. `express.djpai.eth`) if parent name is owned
+Every transaction shows a clickable BaseScan link: score submissions, package registration, ENS record writes. Plus the Fileverse report URI and npm package URL.
 
 <Note>
-If 2FA is enabled on your npm account, use <code>opm push --otp &lt;code&gt;</code> or an npm automation token with "bypass 2FA" enabled.
+See [ENS Text Records](/concepts/ens-records) for the full list of records written during push.
 </Note>

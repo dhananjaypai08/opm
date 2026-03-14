@@ -5,54 +5,47 @@ description: 'Monorepo structure and data flow.'
 
 # Architecture Overview
 
-OPM is a monorepo with five main packages. The flow is: **CLI → Scanner → LLM providers → Contract writer → Base Sepolia**.
+OPM is a monorepo. The flow is: **CLI → Scanner → LLM providers → Contract → Base Sepolia**.
 
-## Monorepo Structure
+## Packages
 
 | Package | Purpose |
-|--------|---------|
-| **packages/core** | Types, constants, prompts, benchmarks, risk classification |
-| **packages/scanner** | Agents, LLM calls, queue, benchmark runner, ZK verifier |
-| **packages/cli** | Ink terminal UI, commands, npm/ENS/OSV integration |
-| **packages/contracts** | Solidity (OPMRegistry), Hardhat, Circom circuits |
-| **packages/web** | Next.js website |
+|---------|---------|
+| `packages/core` | Types, constants, prompts, benchmarks, risk classification |
+| `packages/scanner` | Agent runner, LLM client, scan queue, benchmark runner, ZK verifier |
+| `packages/cli` | Ink terminal UI, commands, ENS/OSV/npm integration |
+| `packages/contracts` | OPMRegistry.sol, Hardhat config, Circom circuit |
+| `packages/web` | Next.js landing page |
 
 ## Data Flow
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌──────────────────┐
-│   opm push  │────▶│   Scanner   │────▶│  LLM Providers   │
-│   opm check │     │  (agents)   │     │ OpenRouter/OpenAI│
-└─────────────┘     └──────┬──────┘     └──────────────────┘
-       │                   │
-       │                   ▼
-       │            ┌─────────────┐
-       │            │  Contract   │
-       │            │   Writer    │
-       │            └──────┬──────┘
-       │                   │
-       ▼                   ▼
-┌─────────────┐     ┌─────────────┐
-│  npm / ENS  │     │ Base Sepolia│
-└─────────────┘     └─────────────┘
+CLI (push/install/check)
+  → Scanner (parallel agent execution)
+    → LLM providers (OpenRouter / OpenAI)
+    → Contract writer (submitScore, registerPackage)
+      → Base Sepolia
+  → npm registry (publish / install)
+  → ENS (text records, contenthash)
+  → Fileverse (IPFS report upload)
 ```
 
 ## External Services
 
 | Service | Purpose |
 |---------|---------|
-| **OpenRouter / OpenAI** | LLM inference for agents |
-| **OSV** | CVE and GHSA advisory lookup |
-| **Fileverse** | IPFS-backed report storage (dDocs protocol) |
-| **ChainPatrol** | Blocklist fallback for unregistered packages |
-| **Artificial Analysis** | Model intelligence/coding indices for weighted scoring |
-| **ENS** | Author identity resolution (forward/reverse, text records) |
-| **npm Registry** | Package metadata, tarball download |
+| OpenRouter / OpenAI | LLM inference |
+| OSV | CVE/GHSA lookup |
+| Fileverse | IPFS report storage |
+| ChainPatrol | Blocklist fallback |
+| Artificial Analysis | Model intelligence indices |
+| ENS | Identity resolution + text records |
+| npm | Package metadata + tarball download |
 
-## Key Paths
+## Key Entry Points
 
-- **CLI entry**: <code>packages/cli/src/index.tsx</code>
-- **Scanner entry**: <code>packages/scanner/src/index.ts</code>
-- **Contract**: <code>packages/contracts/contracts/OPMRegistry.sol</code>
-- **Benchmarks**: <code>packages/core/src/benchmarks.ts</code>
-- **ZK circuit**: <code>packages/contracts/circuits/accuracy_verifier.circom</code>
+- CLI: `packages/cli/src/index.tsx`
+- Scanner: `packages/scanner/src/index.ts`
+- Contract: `packages/contracts/contracts/OPMRegistry.sol`
+- Benchmarks: `packages/core/src/benchmarks.ts`
+- ZK circuit: `packages/contracts/circuits/accuracy_verifier.circom`

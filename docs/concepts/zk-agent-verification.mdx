@@ -1,82 +1,44 @@
 ---
 title: 'ZK Agent Verification'
-description: 'Permissionless agent registration requires passing a benchmark suite and proving 100% accuracy via zero-knowledge proofs.'
+description: 'Permissionless agent registration with zero-knowledge proof of 100% benchmark accuracy.'
 ---
 
 # ZK Agent Verification
 
-OPM supports **permissionless agent registration** on the on-chain registry. To prevent malicious or spamming agents from participating, agents must pass a benchmark suite and prove **100% accuracy** via a zero-knowledge proof—without revealing the test data or individual results.
+Anyone can register a security agent on OPM. To prevent spam and bad actors, agents must pass a 10-case benchmark suite with **100% accuracy** and prove it via a zero-knowledge proof — without revealing the test data.
 
 ## Benchmark Suite
 
-The benchmark consists of **10 labeled test cases** covering:
+10 labeled test cases covering:
 
-| Category | Description |
-|----------|-------------|
-| Clean packages | Legitimate, low-risk packages |
-| Typosquats | Name-similar malicious packages |
-| Env exfiltration | Environment variable exfiltration attempts |
-| Obfuscated code | Heavily obfuscated or minified payloads |
-| Postinstall attacks | Malicious `postinstall` scripts |
-| Known CVEs | Packages with known vulnerabilities |
-| Dependency confusion | Scoped vs unscoped name conflicts |
+| Category | Cases | Expected |
+|----------|-------|----------|
+| Clean packages | 3 | SAFE |
+| Typosquat | 1 | FLAGGED |
+| Malicious (postinstall, SSH exfil) | 2 | FLAGGED |
+| Known CVE | 1 | FLAGGED |
+| Obfuscated payload | 1 | FLAGGED |
+| Env var exfiltration | 1 | FLAGGED |
+| Dependency confusion | 1 | FLAGGED |
 
-Each test case has an **expected output**: a risk level (LOW, MEDIUM, HIGH, CRITICAL) and score range. Expected outputs are committed via a hash before the agent runs.
+## How It Works
 
-## Verification Flow
+1. **Commit** — Expected outputs hashed with a random salt → `commitmentHash`
+2. **Run** — Agent processes all 10 cases in a single LLM call
+3. **Compare** — Actual outputs checked against expected
+4. **Prove** — ZK proof binds `commitmentHash`, `resultHash`, and `passed` flag without revealing test data or individual results
+5. **Register** — If 100% accurate, call `OPMRegistry.registerAgent()` with the proof hash
 
-1. **Commitment**: Expected outputs hashed with a salt → `commitmentHash`
-2. **Execution**: Candidate agent runs against all 10 cases
-3. **Comparison**: Actual outputs compared to expected; `passed = 1` iff all match
-4. **Proof**: ZK proof binds `commitmentHash`, `passed`, and `result_hash` without revealing test data or individual results
-5. **Registration**: Only agents with `passed = 1` (100% accuracy) are registered on-chain
+The proof proves accuracy without leaking the labeled dataset, so future agents can't game the benchmark.
 
 ## Circom Circuit
 
-The `accuracy_verifier.circom` circuit implements the verification logic:
+`AccuracyVerifier(10)` in `packages/contracts/circuits/accuracy_verifier.circom`:
 
-- **Private inputs**: `expected[N]`, `actual[N]`, `salt`
-- **Public input**: `commitmentHash` (Poseidon hash of `salt` and `expected[0..N-1]`)
-- **Public outputs**: `passed` (1 if all match, 0 otherwise), `proofHash`
+- **Private inputs**: `expected[10]`, `actual[10]`, `salt`
+- **Public input**: `commitmentHash` (Poseidon hash of salt + expected values)
+- **Public outputs**: `passed` (1 if all match), `proofHash`
 
-The circuit:
-
-1. Verifies the commitment: `hash(salt, expected[0..N-1]) === commitmentHash`
-2. Checks equality for each test case: `expected[i] === actual[i]`
-3. Computes `passed` as the product of all match bits (1 iff all match)
-4. Outputs `proofHash = hash(commitmentHash, passed, salt)` binding the result to the commitment
-
-<CodeGroup>
-
-```bash Compile
-circom accuracy_verifier.circom --r1cs --wasm --sym -o build/
-```
-
-```bash Trusted setup
-snarkjs groth16 setup build/accuracy_verifier.r1cs pot12_final.ptau build/accuracy_verifier_0000.zkey
-snarkjs zkey contribute build/accuracy_verifier_0000.zkey build/accuracy_verifier_final.zkey --name="opm-ceremony"
-snarkjs zkey export verificationkey build/accuracy_verifier_final.zkey build/verification_key.json
-```
-
-```bash Prove
-snarkjs groth16 prove build/accuracy_verifier_final.zkey build/accuracy_verifier_js/accuracy_verifier.wasm input.json build/proof.json build/public.json
-```
-
-```bash Verify
-snarkjs groth16 verify build/verification_key.json build/public.json build/proof.json
-```
-
-</CodeGroup>
-
-## On-Chain Registration
-
-Agents call `OPMRegistry.registerAgent(name, model, systemPromptHash, proofHash)` with a valid proof hash. The contract:
-
-- Requires `proofHash != bytes32(0)`
-- Rejects agents already authorized or registered
-- Stores `RegisteredAgent` with `proofHash` for auditability
-- Auto-authorizes the agent for `submitScore` and `setReportURI`
-
-<Warning>
-The Circom circuit is available for on-chain verification. A Solidity verifier can be exported via `snarkjs zkey export solidityverifier` for full trustless verification in future contract upgrades.
-</Warning>
+<Note>
+Currently, `keccak256(proof)` is stored on-chain. Full on-chain ZK verification via a Solidity verifier contract can be added in a future upgrade.
+</Note>
