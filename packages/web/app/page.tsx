@@ -39,9 +39,9 @@ function Nav() {
         </a>
         <div className="flex items-center gap-8">
           <a href="#features" className="text-sm text-muted hover:text-accent transition-colors">Features</a>
-          <a href="#architecture" className="text-sm text-muted hover:text-accent transition-colors">Architecture</a>
           <a href="#cli" className="text-sm text-muted hover:text-accent transition-colors">CLI</a>
           <a href={DOCS_URL} target="_blank" rel="noopener" className="text-sm text-muted hover:text-accent transition-colors">Docs</a>
+          <a href={NPM_URL} target="_blank" rel="noopener" className="text-sm text-muted hover:text-accent transition-colors">npm</a>
           <a href={GITHUB_URL} target="_blank" rel="noopener" className="text-sm text-muted hover:text-accent transition-colors">GitHub</a>
           <a href={BASESCAN} target="_blank" rel="noopener" className="text-sm font-mono text-muted hover:text-accent transition-colors flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />

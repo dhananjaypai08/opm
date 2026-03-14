@@ -106,7 +106,8 @@ function Help() {
       <Box flexDirection="column" marginLeft={2}>
         <Text color="cyan" bold>Security commands:</Text>
         <Text>  opm push [--token t] [--otp c]  Sign, scan, publish, register</Text>
-        <Text>  opm install [pkg]       Install with on-chain security verification</Text>
+        <Text>  opm install [pkg[@ver]] Install with on-chain security verification</Text>
+        <Text>  opm install pkg@ens.eth Install safest version by ENS author</Text>
         <Text>  opm check               Scan all deps: typosquats, CVEs, AI analysis</Text>
         <Text>  opm fix                 Auto-fix typosquats and vulnerable versions</Text>
         <Text>  opm audit               Scan all deps against on-chain security data</Text>
@@ -135,6 +136,7 @@ function Help() {
         <Text> </Text>
         <Text color="gray">Aliases:  i/add → install, rm → uninstall, ls → list</Text>
         <Text color="gray">          view name.eth → author profile, view pkg → info</Text>
+        <Text color="gray">          pkg@name.eth → ENS-resolved safest version by author</Text>
         <Text> </Text>
         <Text color="cyan" bold>Environment (install/audit/info/view need no config):</Text>
         <Text>  OPM_SIGNING_KEY        Author signing key (for push only)</Text>

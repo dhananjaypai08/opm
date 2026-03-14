@@ -10,7 +10,8 @@ import { verifyChecksum } from '../services/signature';
 import { resolveENSName } from '../services/ens';
 import { checkPackageWithChainPatrol } from '../services/chainpatrol';
 import { queryOSV, getOSVSeverity, getFixedVersion, type OSVVulnerability } from '../services/osv';
-import { resolveVersion } from '../services/version';
+import { resolveVersion, findSafeVersion, isENSVersion, type ResolvedVersion } from '../services/version';
+import { resolveAddress } from '../services/ens';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -19,6 +20,7 @@ type StepStatus = 'pending' | 'running' | 'done' | 'error' | 'skip';
 
 interface Steps {
   resolve: StepStatus;
+  ens: StepStatus;
   cve: StepStatus;
   onchain: StepStatus;
   signature: StepStatus;
@@ -31,6 +33,7 @@ interface SecurityResult {
   name: string;
   version: string;
   resolvedVersion: string;
+  resolved?: ResolvedVersion;
   cves: OSVVulnerability[];
   info?: OnChainPackageInfo;
   signatureValid?: boolean;
@@ -40,6 +43,9 @@ interface SecurityResult {
   warning: boolean;
   blockReason?: string;
   safestVersion?: string;
+  autoBumped?: boolean;
+  autoBumpedFrom?: string;
+  autoBumpReason?: string;
 }
 
 interface InstallCommandProps {
@@ -76,12 +82,16 @@ export function InstallCommand({ packageName, version }: InstallCommandProps) {
 // ─── Single package install with full security pipeline ───────────────────────
 
 function SingleInstall({ packageName, version }: { packageName: string; version?: string }) {
+  const isEns = version ? isENSVersion(version) : false;
+
   const [steps, setSteps] = useState<Steps>({
-    resolve: 'pending', cve: 'pending', onchain: 'pending',
+    resolve: 'pending', ens: isEns ? 'pending' : 'skip',
+    cve: 'pending', onchain: 'pending',
     signature: 'pending', chainpatrol: 'pending', report: 'pending',
     install: 'pending',
   });
   const [result, setResult] = useState<SecurityResult | null>(null);
+  const [ensDetail, setEnsDetail] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
@@ -99,11 +109,35 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
       blocked: false, warning: false,
     };
 
-    update('resolve', 'running');
-    r.resolvedVersion = await resolveVersion(packageName, r.version);
-    setResult({ ...r });
-    update('resolve', 'done');
+    // ── Resolve version (+ ENS if applicable) ──
+    if (isEns) {
+      update('resolve', 'done');
+      update('ens', 'running');
+      try {
+        const resolved = await resolveVersion(packageName, r.version, (msg) => setEnsDetail(msg));
+        r.resolved = resolved;
+        r.resolvedVersion = resolved.version;
+        r.ensName = resolved.ensName;
+        setResult({ ...r });
+        setEnsDetail(`${resolved.ensName} → v${resolved.version} (${resolved.reason})`);
+        update('ens', 'done');
+      } catch (err: any) {
+        setEnsDetail(err?.message || 'ENS resolution failed');
+        update('ens', 'error');
+        setError(err?.message || 'ENS resolution failed');
+        update('install', 'error');
+        return;
+      }
+    } else {
+      update('resolve', 'running');
+      const resolved = await resolveVersion(packageName, r.version);
+      r.resolved = resolved;
+      r.resolvedVersion = resolved.version;
+      setResult({ ...r });
+      update('resolve', 'done');
+    }
 
+    // ── CVE check ──
     update('cve', 'running');
     r.cves = await queryOSV(packageName, r.resolvedVersion);
     const cveCounts = categorizeCVEs(r.cves);
@@ -116,6 +150,7 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
     setResult({ ...r });
     update('cve', 'done');
 
+    // ── On-chain registry lookup ──
     update('onchain', 'running');
     try {
       const info = await getPackageInfo(packageName, r.resolvedVersion);
@@ -133,12 +168,35 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
     setResult({ ...r });
     update('onchain', 'done');
 
+    // ── Auto-bump: try to find a safe version instead of blocking ──
+    if (r.blocked && !isEns) {
+      const safe = await findSafeVersion(packageName, r.resolvedVersion, r.cves);
+      if (safe) {
+        r.autoBumped = true;
+        r.autoBumpedFrom = r.resolvedVersion;
+        r.autoBumpReason = safe.reason;
+        r.resolvedVersion = safe.version;
+        r.blocked = false;
+        r.blockReason = undefined;
+        r.warning = true;
+
+        r.cves = await queryOSV(packageName, safe.version).catch(() => []);
+        try {
+          const newInfo = await getPackageInfo(packageName, safe.version);
+          if (newInfo.exists) r.info = newInfo;
+        } catch { /* keep existing */ }
+
+        setResult({ ...r });
+      }
+    }
+
+    // ── Signature verification ──
     if (r.info?.exists) {
       update('signature', 'running');
       r.signatureValid = r.info.signature !== '0x'
         ? verifyChecksum(r.info.checksum, r.info.signature, r.info.author)
         : false;
-      if (r.info.author) {
+      if (r.info.author && !r.ensName) {
         r.ensName = await resolveENSName(r.info.author).catch(() => null) || undefined;
       }
       setResult({ ...r });
@@ -147,6 +205,7 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
       update('signature', 'skip');
     }
 
+    // ── ChainPatrol check ──
     if (!r.info?.exists) {
       update('chainpatrol', 'running');
       const cp = await checkPackageWithChainPatrol(packageName).catch(() => null);
@@ -161,12 +220,14 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
       update('chainpatrol', 'skip');
     }
 
+    // ── Fileverse report ──
     if (r.info?.reportURI && !r.info.reportURI.startsWith('local://')) {
       update('report', 'done');
     } else {
       update('report', 'skip');
     }
 
+    // ── Block or install ──
     if (r.blocked) {
       setError(`Blocked: ${r.blockReason || 'security risk detected'}`);
       update('install', 'error');
@@ -175,7 +236,7 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
 
     update('install', 'running');
     try {
-      const target = `${packageName}${version ? `@${version}` : ''}`;
+      const target = `${packageName}@${r.resolvedVersion}`;
       execSync(`npm install ${target}`, { encoding: 'utf-8', stdio: 'pipe', cwd: process.cwd() });
     } catch { /* non-fatal */ }
     update('install', 'done');
@@ -191,11 +252,42 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
   return (
     <Box flexDirection="column">
       <Header subtitle="install" />
-      {result && <Text color="white" bold> {result.name}@{result.resolvedVersion}</Text>}
+      {result && (
+        <Box>
+          <Text color="white" bold> {result.name}@{result.resolvedVersion}</Text>
+          {result.ensName && result.resolved?.source === 'ens' && (
+            <Text color="cyan"> via {result.ensName}</Text>
+          )}
+          {result.autoBumped && (
+            <Text color="yellow"> (bumped from {result.autoBumpedFrom})</Text>
+          )}
+        </Box>
+      )}
       <Text> </Text>
 
       <StatusLine label="Resolve version" status={steps.resolve}
         detail={steps.resolve === 'done' ? result?.resolvedVersion : undefined} />
+
+      {isEns && (
+        <StatusLine label="Resolve ENS author" status={steps.ens} detail={ensDetail} />
+      )}
+      {steps.ens === 'done' && result?.resolved?.source === 'ens' && (
+        <Box flexDirection="column" marginLeft={4}>
+          <Box>
+            <Text color="gray">Author:  </Text>
+            <Text color="green">{result.ensName}</Text>
+            {result.resolved.authorAddress && (
+              <Text color="gray"> ({truncateAddress(result.resolved.authorAddress)})</Text>
+            )}
+            <Text color="green"> ✓ on-chain</Text>
+          </Box>
+          <Box>
+            <Text color="gray">Version: </Text>
+            <Text color="cyan">{result.resolvedVersion}</Text>
+            <Text color="gray"> (safest on-chain version)</Text>
+          </Box>
+        </Box>
+      )}
 
       <StatusLine label="Query CVE database (OSV)" status={steps.cve}
         detail={steps.cve === 'done'
@@ -227,6 +319,22 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
           })}
           {result.cves.length > 5 && (
             <Text color="gray">  ...and {result.cves.length - 5} more</Text>
+          )}
+        </Box>
+      )}
+
+      {result?.autoBumped && (
+        <Box flexDirection="column" marginLeft={4} marginTop={0}>
+          <Box>
+            <Text color="yellow">↑ Auto-bumped: </Text>
+            <Text color="red">{result.autoBumpedFrom}</Text>
+            <Text color="yellow"> → </Text>
+            <Text color="green" bold>{result.resolvedVersion}</Text>
+          </Box>
+          {result.autoBumpReason && (
+            <Box marginLeft={2}>
+              <Text color="gray">{result.autoBumpReason}</Text>
+            </Box>
           )}
         </Box>
       )}
@@ -269,14 +377,30 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
         <Box flexDirection="column" marginTop={1}>
           <Text color="gray">────────────────────────────────────────</Text>
           <Text color="white" bold> Security Summary</Text>
+          {result.resolved?.source === 'ens' && (
+            <Box marginLeft={2}>
+              <Text color="gray">Resolved: </Text>
+              <Text color="green">{result.ensName}</Text>
+              <Text color="gray"> → </Text>
+              <Text color="cyan">{result.resolvedVersion}</Text>
+            </Box>
+          )}
+          {result.autoBumped && (
+            <Box marginLeft={2}>
+              <Text color="gray">Bumped:   </Text>
+              <Text color="red">{result.autoBumpedFrom}</Text>
+              <Text color="gray"> → </Text>
+              <Text color="green">{result.resolvedVersion}</Text>
+            </Box>
+          )}
           {result.info?.exists && (
             <Box marginLeft={2}>
-              <Text color="gray">Risk: </Text>
+              <Text color="gray">Risk:     </Text>
               <RiskBadge level={classifyRisk(result.info.aggregateScore)} score={result.info.aggregateScore} />
             </Box>
           )}
           <Box marginLeft={2}>
-            <Text color="gray">CVEs: </Text>
+            <Text color="gray">CVEs:     </Text>
             {result.cves.length > 0 ? (
               <Text color={severeCount > 0 ? 'red' : 'yellow'}>
                 {result.cves.length} known ({cveCounts.critical > 0 ? `${cveCounts.critical} critical, ` : ''}{cveCounts.high} high, {cveCounts.medium} medium, {cveCounts.low} low)
@@ -287,19 +411,19 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
           </Box>
           {result.info?.exists && (
             <Box marginLeft={2}>
-              <Text color="gray">Signature: </Text>
+              <Text color="gray">Signature:</Text>
               <Text color={result.signatureValid ? 'green' : 'red'}>
-                {result.signatureValid ? 'verified' : 'unverified'}
+                {' '}{result.signatureValid ? 'verified' : 'unverified'}
               </Text>
             </Box>
           )}
           {result.ensName && (
             <Box marginLeft={2}>
-              <Text color="gray">Author: </Text>
+              <Text color="gray">Author:   </Text>
               <Text color="green">{result.ensName}</Text>
             </Box>
           )}
-          {result.warning && !result.blocked && (
+          {result.warning && !result.blocked && !result.autoBumped && (
             <Box marginLeft={2}>
               <Text color="yellow">⚠ Vulnerabilities detected — review before using in production</Text>
             </Box>
@@ -311,7 +435,7 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
               <Text color="yellow"> to fix known CVEs</Text>
             </Box>
           )}
-          {result.warning && result.safestVersion && (
+          {result.warning && result.safestVersion && !result.autoBumped && (
             <Box marginLeft={2}>
               <Text color="yellow">⚠ Consider using safest on-chain version: {result.safestVersion}</Text>
             </Box>
@@ -338,6 +462,11 @@ interface BulkDepResult {
   blocked: boolean;
   blockReason?: string;
   suggestedUpgrade?: string;
+  ensResolved?: boolean;
+  ensName?: string;
+  autoBumped?: boolean;
+  originalVersion?: string;
+  autoBumpReason?: string;
 }
 
 function BulkInstall() {
@@ -346,6 +475,9 @@ function BulkInstall() {
   const [error, setError] = useState<string | null>(null);
   const [installStatus, setInstallStatus] = useState<StepStatus>('pending');
   const [total, setTotal] = useState(0);
+  const [ensCount, setEnsCount] = useState(0);
+  const [ensResolvingStatus, setEnsResolvingStatus] = useState<StepStatus>('skip');
+  const [ensResolvedCount, setEnsResolvedCount] = useState(0);
 
   useEffect(() => {
     runBulk().catch((err) => setError(String(err)));
@@ -368,15 +500,79 @@ function BulkInstall() {
       return;
     }
 
+    // ── Phase 1: Batch-resolve all ENS names in parallel ──
+    const ensEntries = entries.filter(([, ver]) => isENSVersion(String(ver)));
+    setEnsCount(ensEntries.length);
+
+    const ensCache = new Map<string, { address: string; version: string }>();
+
+    if (ensEntries.length > 0) {
+      setEnsResolvingStatus('running');
+
+      const uniqueEnsNames = [...new Set(ensEntries.map(([, v]) => String(v)))];
+      const ensResults = await Promise.allSettled(
+        uniqueEnsNames.map(async (ensName) => {
+          const addr = await resolveAddress(ensName);
+          return { ensName, address: addr };
+        }),
+      );
+
+      const ensAddresses = new Map<string, string>();
+      for (const result of ensResults) {
+        if (result.status === 'fulfilled' && result.value.address) {
+          ensAddresses.set(result.value.ensName, result.value.address);
+        }
+      }
+
+      const ensVersionResults = await Promise.allSettled(
+        ensEntries.map(async ([name, ensName]) => {
+          const addr = ensAddresses.get(String(ensName));
+          if (!addr) return null;
+          const resolved = await resolveVersion(name, String(ensName));
+          return { name, ensName: String(ensName), resolved };
+        }),
+      );
+
+      for (const result of ensVersionResults) {
+        if (result.status === 'fulfilled' && result.value) {
+          const { name, ensName, resolved } = result.value;
+          ensCache.set(name, {
+            address: resolved.authorAddress || '',
+            version: resolved.version,
+          });
+          setEnsResolvedCount((c) => c + 1);
+        }
+      }
+
+      setEnsResolvingStatus('done');
+    }
+
+    // ── Phase 2: Scan each dependency ──
     const checked: BulkDepResult[] = [];
 
     for (const [name, verRange] of entries) {
-      const rawVersion = String(verRange).replace(/^[\^~]/, '');
+      const rawVerStr = String(verRange);
+      const isEns = isENSVersion(rawVerStr);
+
+      let rawVersion: string;
+      let ensName: string | undefined;
+      let ensResolved = false;
+
+      if (isEns && ensCache.has(name)) {
+        const cached = ensCache.get(name)!;
+        rawVersion = cached.version;
+        ensName = rawVerStr;
+        ensResolved = true;
+      } else {
+        rawVersion = rawVerStr.replace(/^[\^~]/, '');
+      }
+
       const entry: BulkDepResult = {
         name, version: rawVersion,
         cves: [], cvesCritical: 0, cvesHigh: 0,
         onChain: false, score: null,
         blocked: false,
+        ensResolved, ensName,
       };
 
       const [osvResult, infoResult] = await Promise.allSettled([
@@ -406,6 +602,25 @@ function BulkInstall() {
         }
       }
 
+      // ── Auto-bump blocked deps ──
+      if (entry.blocked && !ensResolved) {
+        const safe = await findSafeVersion(name, rawVersion, entry.cves);
+        if (safe) {
+          entry.autoBumped = true;
+          entry.originalVersion = rawVersion;
+          entry.autoBumpReason = safe.reason;
+          entry.version = safe.version;
+          entry.blocked = false;
+          entry.blockReason = undefined;
+
+          const newCves = await queryOSV(name, safe.version).catch(() => []);
+          entry.cves = newCves;
+          const newCounts = categorizeCVEs(newCves);
+          entry.cvesCritical = newCounts.critical;
+          entry.cvesHigh = newCounts.high;
+        }
+      }
+
       checked.push(entry);
       setDeps([...checked]);
     }
@@ -419,16 +634,24 @@ function BulkInstall() {
       return;
     }
 
+    // Build npm install command with correct versions
+    const bumpedDeps = checked.filter((d) => d.autoBumped || d.ensResolved);
     setInstallStatus('running');
     try {
-      execSync('npm install', { encoding: 'utf-8', stdio: 'pipe', cwd: process.cwd() });
+      if (bumpedDeps.length > 0) {
+        const args = checked.map((d) => `${d.name}@${d.version}`).join(' ');
+        execSync(`npm install ${args}`, { encoding: 'utf-8', stdio: 'pipe', cwd: process.cwd() });
+      } else {
+        execSync('npm install', { encoding: 'utf-8', stdio: 'pipe', cwd: process.cwd() });
+      }
     } catch { /* non-fatal */ }
     setInstallStatus('done');
   }
 
   const blockedDeps = deps.filter((d) => d.blocked);
-  const warnDeps = deps.filter((d) => !d.blocked && (d.cvesHigh > 0 || (d.score !== null && d.score >= MEDIUM_RISK_THRESHOLD)));
-  const safeDeps = deps.filter((d) => !d.blocked && d.cvesHigh === 0 && (d.score === null || d.score < MEDIUM_RISK_THRESHOLD));
+  const bumpedDeps = deps.filter((d) => d.autoBumped || d.ensResolved);
+  const warnDeps = deps.filter((d) => !d.blocked && !d.autoBumped && !d.ensResolved && (d.cvesHigh > 0 || (d.score !== null && d.score >= MEDIUM_RISK_THRESHOLD)));
+  const safeDeps = deps.filter((d) => !d.blocked && !d.autoBumped && !d.ensResolved && d.cvesHigh === 0 && (d.score === null || d.score < MEDIUM_RISK_THRESHOLD));
   const totalCves = deps.reduce((s, d) => s + d.cves.length, 0);
 
   return (
@@ -436,13 +659,48 @@ function BulkInstall() {
       <Header subtitle="install" />
       <Text> </Text>
 
+      {ensCount > 0 && (
+        <StatusLine label={`Resolve ${ensCount} ENS author(s)`} status={ensResolvingStatus}
+          detail={ensResolvingStatus === 'done' ? `${ensResolvedCount} resolved` : ensResolvingStatus === 'running' ? 'resolving...' : undefined} />
+      )}
+
       <StatusLine label={`Scanning ${total} dependencies`} status={scanning ? 'running' : 'done'}
         detail={!scanning ? `${deps.length} checked` : `${deps.length}/${total}`} />
 
       {deps.length > 0 && (
         <Box flexDirection="column" marginTop={1}>
-          {blockedDeps.length > 0 && (
+          {bumpedDeps.length > 0 && (
             <Box flexDirection="column">
+              <Text color="cyan" bold> ENS / AUTO-BUMPED ({bumpedDeps.length})</Text>
+              {bumpedDeps.map((d) => (
+                <Box key={d.name} flexDirection="column" marginLeft={2}>
+                  <Box>
+                    {d.ensResolved ? (
+                      <Text color="cyan">◈ </Text>
+                    ) : (
+                      <Text color="yellow">↑ </Text>
+                    )}
+                    <Text color="white" bold>{d.name}</Text>
+                    <Text color="green">@{d.version}</Text>
+                    {d.ensResolved && d.ensName && (
+                      <Text color="cyan">  via {d.ensName}</Text>
+                    )}
+                    {d.autoBumped && d.originalVersion && (
+                      <Text color="yellow">  bumped from {d.originalVersion}</Text>
+                    )}
+                  </Box>
+                  {d.autoBumpReason && (
+                    <Box marginLeft={4}>
+                      <Text color="gray">{d.autoBumpReason}</Text>
+                    </Box>
+                  )}
+                </Box>
+              ))}
+            </Box>
+          )}
+
+          {blockedDeps.length > 0 && (
+            <Box flexDirection="column" marginTop={bumpedDeps.length > 0 ? 1 : 0}>
               <Text color="red" bold> BLOCKED ({blockedDeps.length})</Text>
               {blockedDeps.map((d) => (
                 <Box key={d.name} flexDirection="column" marginLeft={2}>
@@ -476,7 +734,7 @@ function BulkInstall() {
           )}
 
           {warnDeps.length > 0 && (
-            <Box flexDirection="column" marginTop={blockedDeps.length > 0 ? 1 : 0}>
+            <Box flexDirection="column" marginTop={(blockedDeps.length + bumpedDeps.length) > 0 ? 1 : 0}>
               <Text color="yellow" bold> WARNING ({warnDeps.length})</Text>
               {warnDeps.map((d) => (
                 <Box key={d.name} marginLeft={2}>
@@ -491,7 +749,7 @@ function BulkInstall() {
           )}
 
           {safeDeps.length > 0 && (
-            <Box flexDirection="column" marginTop={(blockedDeps.length + warnDeps.length) > 0 ? 1 : 0}>
+            <Box flexDirection="column" marginTop={(blockedDeps.length + warnDeps.length + bumpedDeps.length) > 0 ? 1 : 0}>
               <Text color="green" bold> SAFE ({safeDeps.length})</Text>
               {safeDeps.map((d) => (
                 <Box key={d.name} marginLeft={2}>
@@ -518,7 +776,7 @@ function BulkInstall() {
 
           <Box marginTop={1}>
             <Text color={blockedDeps.length > 0 ? 'red' : totalCves > 0 ? 'yellow' : 'green'} bold>
-              {deps.length} packages scanned: {blockedDeps.length} blocked, {warnDeps.length} warnings, {totalCves} CVEs
+              {deps.length} packages scanned: {blockedDeps.length} blocked, {bumpedDeps.length} resolved, {warnDeps.length} warnings, {totalCves} CVEs
             </Text>
           </Box>
 
