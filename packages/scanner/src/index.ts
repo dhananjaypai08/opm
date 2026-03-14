@@ -10,7 +10,7 @@ export { submitScoreOnChain, setReportURIOnChain } from './services/contract-wri
 export { uploadReportToFileverse, uploadCheckReportToFileverse, fetchReportFromFileverse } from './services/fileverse';
 export type { FileverseUploadResult } from './services/fileverse';
 export { formatCheckReportAsMarkdown } from './services/report-formatter';
-export { runBenchmarkSuite, type AgentCandidate, type BenchmarkRunResult } from './services/benchmark-runner';
+export { runBenchmarkSuite, runBatchBenchmarkSuite, type AgentCandidate, type BenchmarkRunResult, type BatchBenchmarkRunResult } from './services/benchmark-runner';
 export { generateProof, verifyProof, generateCommitment, proofToOnChainBytes, type ZKProof } from './services/zk-verifier';
 
 if (import.meta.main) {

@@ -32,8 +32,8 @@ opm register-agent --name <name> --model <model> [--system-prompt <prompt>]
   <Step title="Validate configuration">
     Checks agent name, model, and required env vars.
   </Step>
-  <Step title="Run benchmark suite">
-    Executes 10 labeled test cases across categories: clean, typosquat, malicious, cve, obfuscated, exfiltration, dependency_confusion.
+  <Step title="Batch benchmark (single call)">
+    Sends all 10 labeled test cases to the agent in a single LLM call. The agent returns a flagged/safe verdict for each case, which is compared against the ground-truth labels.
   </Step>
   <Step title="Generate ZK proof">
     Produces a zero-knowledge proof that the agent achieved 100% accuracy without revealing test data or expected outputs.
@@ -45,20 +45,20 @@ opm register-agent --name <name> --model <model> [--system-prompt <prompt>]
 
 ## Benchmark Categories
 
-| Category | Count | Description |
-|----------|-------|-------------|
-| clean | 3 | Legitimate packages (string utils, math, validator) |
-| typosquat | 1 | Typosquat with credential exfiltration |
-| malicious | 2 | Postinstall shell, SSH key exfiltration |
-| cve | 1 | Known prototype pollution CVE |
-| obfuscated | 1 | Obfuscated reverse shell |
-| exfiltration | 1 | Env var exfiltration on import |
-| dependency_confusion | 1 | Internal scope shadowing + exfiltration |
+| Category | Count | Expected Verdict |
+|----------|-------|-----------------|
+| clean | 3 | SAFE |
+| typosquat | 1 | FLAGGED |
+| malicious | 2 | FLAGGED |
+| cve | 1 | FLAGGED |
+| obfuscated | 1 | FLAGGED |
+| exfiltration | 1 | FLAGGED |
+| dependency_confusion | 1 | FLAGGED |
 
 ## Requirements
 
 <Warning>
-**100% accuracy** is required. The agent must pass all 10 benchmark cases. Each case is evaluated by score range and risk level ordinal.
+**100% accuracy** is required. The agent must correctly classify all 10 cases as FLAGGED or SAFE. This is done in a single LLM call for speed.
 </Warning>
 
 <Note>
@@ -75,6 +75,6 @@ On success:
 ## Failure
 
 On failure, the CLI shows:
-- Which benchmark cases failed and why
-- Expected vs actual risk level and score
+- Which benchmark cases were misclassified (flagged vs safe)
+- Expected vs actual verdict for each failed case
 - Rejection reason (e.g. "Agent achieved 90% accuracy (100% required)")

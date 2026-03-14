@@ -1,361 +1,652 @@
-'use client';
+"use client"
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react"
+import { Copy, Check } from "lucide-react"
 
-const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL;
-if (!DOCS_URL) {
-  throw new Error('NEXT_PUBLIC_DOCS_URL is not set');
-}
-const GITHUB_URL = 'https://github.com/dhananjaypai08/opm';
-const NPM_URL = 'https://www.npmjs.com/package/opmsec';
-const CONTRACT = '0x16684391fc9bf48246B08Afe16d1a57BFa181d48';
+const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || "https://docs.opm.dev";
+const GITHUB_URL = "https://github.com/dhananjaypai08/opm";
+const NPM_URL = "https://www.npmjs.com/package/opmsec";
+const CONTRACT = "0x16684391fc9bf48246B08Afe16d1a57BFa181d48";
 const BASESCAN = `https://sepolia.basescan.org/address/${CONTRACT}`;
 
-function Logo({ size = 20 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width={size} height={size}>
-      <rect width="32" height="32" rx="6" fill="#ededed" />
-      <path d="M8 10L12 22L16 13L20 22L24 10" stroke="#0a0a0a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="16" cy="24" r="1.5" fill="#16a34a" />
-    </svg>
-  );
-}
+export default function OPMTerminal() {
+  const [currentCommand, setCurrentCommand] = useState(0)
+  const [showCursor, setShowCursor] = useState(true)
+  const [matrixChars, setMatrixChars] = useState<string[]>([])
+  const [terminalLines, setTerminalLines] = useState<string[]>([])
+  const [currentTyping, setCurrentTyping] = useState("")
+  const [isExecuting, setIsExecuting] = useState(false)
+  const [copiedStates, setCopiedStates] = useState<{ [key: string]: boolean }>({})
 
-function Nav() {
-  const [scrolled, setScrolled] = useState(false);
+  const copyToClipboard = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedStates((prev) => ({ ...prev, [key]: true }))
+      setTimeout(() => {
+        setCopiedStates((prev) => ({ ...prev, [key]: false }))
+      }, 2000)
+    } catch (err) {
+      console.error("Failed to copy text: ", err)
+    }
+  }
+
+  const terminalSequences = [
+    {
+      command: "opm install package-name@djpai.eth",
+      outputs: [
+        "🔍 Resolving djpai.eth → 0x3a9f...c4e2",
+        "📦 package-name@1.2.0 — on-chain score: 12 (LOW)",
+        "✅ Signature verified · checksum matched",
+        "🛡️  Installed securely via OPM",
+      ],
+    },
+    {
+      command: "opm push",
+      outputs: [
+        "📝 Signing with author wallet...",
+        "🤖 Agent 1 (Claude) scanning... risk: 8",
+        "🤖 Agent 2 (Gemini) scanning... risk: 11",
+        "🤖 Agent 3 (DeepSeek) scanning... risk: 6",
+        "⛓  Registered on Base Sepolia ✓",
+      ],
+    },
+    {
+      command: "opm register-agent --name sentinel --model gpt-5.4",
+      outputs: [
+        "🧪 Batch benchmark (10 cases, single call)...",
+        "✅ Accuracy: 10/10 (100%)",
+        "🔐 ZK proof generated & verified",
+        "⛓  Agent registered on-chain ✓",
+      ],
+    },
+  ]
+
+  const heroAsciiText = `
+ ██████╗ ██████╗ ███╗   ███╗
+██╔═══██╗██╔══██╗████╗ ████║
+██║   ██║██████╔╝██╔████╔██║
+██║   ██║██╔═══╝ ██║╚██╔╝██║
+╚██████╔╝██║     ██║ ╚═╝ ██║
+ ╚═════╝ ╚═╝     ╚═╝     ╚═╝`.trim()
+
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handler, { passive: true });
-    return () => window.removeEventListener('scroll', handler);
-  }, []);
+    const chars = "OPM01010101ABCDEF█▓▒░▄▀■□▪▫⛓🔐".split("")
+    const newMatrixChars = Array.from({ length: 100 }, () => chars[Math.floor(Math.random() * chars.length)])
+    setMatrixChars(newMatrixChars)
+
+    const interval = setInterval(() => {
+      setMatrixChars((prev) => prev.map(() => chars[Math.floor(Math.random() * chars.length)]))
+    }, 1500)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setShowCursor((prev) => !prev)
+    }, 500)
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    const sequence = terminalSequences[currentCommand]
+    const timeouts: NodeJS.Timeout[] = []
+
+    const runSequence = async () => {
+      setTerminalLines([])
+      setCurrentTyping("")
+      setIsExecuting(false)
+
+      const command = sequence.command
+      for (let i = 0; i <= command.length; i++) {
+        timeouts.push(
+          setTimeout(() => {
+            setCurrentTyping(command.slice(0, i))
+          }, i * 50),
+        )
+      }
+
+      timeouts.push(
+        setTimeout(() => {
+          setIsExecuting(true)
+          setCurrentTyping("")
+          setTerminalLines((prev) => [...prev, `user@dev:~/project$ ${command}`])
+        }, command.length * 50 + 500),
+      )
+
+      sequence.outputs.forEach((output, index) => {
+        timeouts.push(
+          setTimeout(() => {
+            setTerminalLines((prev) => [...prev, output])
+          }, command.length * 50 + 1000 + index * 800),
+        )
+      })
+
+      timeouts.push(
+        setTimeout(() => {
+          setCurrentCommand((prev) => (prev + 1) % terminalSequences.length)
+        }, command.length * 50 + 1000 + sequence.outputs.length * 800 + 2000),
+      )
+    }
+
+    runSequence()
+    return () => { timeouts.forEach(clearTimeout) }
+  }, [currentCommand])
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${scrolled ? 'bg-bg/80 backdrop-blur-xl border-b border-border' : ''}`}>
-      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <a href="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-          <Logo size={24} />
-          <span className="text-lg font-semibold tracking-tight">opm</span>
-          <span className="text-[10px] font-mono text-muted bg-surface px-1.5 py-0.5 rounded border border-border">v0.1.3</span>
-        </a>
-        <div className="flex items-center gap-8">
-          <a href="#features" className="text-sm text-muted hover:text-accent transition-colors">Features</a>
-          <a href="#cli" className="text-sm text-muted hover:text-accent transition-colors">CLI</a>
-          <a href={DOCS_URL} target="_blank" rel="noopener" className="text-sm text-muted hover:text-accent transition-colors">Docs</a>
-          <a href={NPM_URL} target="_blank" rel="noopener" className="text-sm text-muted hover:text-accent transition-colors">npm</a>
-          <a href={GITHUB_URL} target="_blank" rel="noopener" className="text-sm text-muted hover:text-accent transition-colors">GitHub</a>
-          <a href={BASESCAN} target="_blank" rel="noopener" className="text-sm font-mono text-muted hover:text-accent transition-colors flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Base Sepolia
-          </a>
-        </div>
-      </div>
-    </nav>
-  );
-}
+    <div className="min-h-screen bg-black text-white font-mono overflow-hidden relative">
+      {/* Nav */}
+      <nav className="border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm p-4 relative z-10 sticky top-0">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <div className="flex gap-2">
+                <div className="w-3 h-3 bg-red-500 hover:bg-red-400 transition-colors cursor-pointer"></div>
+                <div className="w-3 h-3 bg-yellow-500 hover:bg-yellow-400 transition-colors cursor-pointer"></div>
+                <div className="w-3 h-3 bg-green-500 hover:bg-green-400 transition-colors cursor-pointer"></div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-white font-bold text-lg">OPM</span>
+                <span className="text-gray-400 text-sm">on-chain package manager</span>
+              </div>
+            </div>
 
-function Hero() {
-  return (
-    <section className="relative min-h-screen flex items-center justify-center grid-bg overflow-hidden">
-      <div className="absolute inset-0">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-gradient-radial from-white/[0.02] to-transparent animate-glow-pulse" />
-      </div>
+            <div className="hidden md:flex items-center gap-8 ml-8">
+              <a href="#features" className="text-gray-400 hover:text-white transition-colors cursor-pointer relative group">
+                <span>Features</span>
+                <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></div>
+              </a>
+              <a href="#agents" className="text-gray-400 hover:text-white transition-colors cursor-pointer relative group">
+                <span>AI Agents</span>
+                <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></div>
+              </a>
+              <a href="#cli" className="text-gray-400 hover:text-white transition-colors cursor-pointer relative group">
+                <span>CLI</span>
+                <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></div>
+              </a>
+              <a href={DOCS_URL} target="_blank" rel="noopener" className="text-gray-400 hover:text-white transition-colors cursor-pointer relative group">
+                <span>Docs</span>
+                <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></div>
+              </a>
+              <a href={BASESCAN} target="_blank" rel="noopener" className="text-gray-400 hover:text-white transition-colors cursor-pointer relative group flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                <span>Base Sepolia</span>
+                <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all duration-300 group-hover:w-full"></div>
+              </a>
+            </div>
+          </div>
 
-      <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
-        <div className="animate-fade-in">
-          <div className="inline-flex items-center gap-2 text-xs font-mono text-muted mb-8 px-3 py-1.5 rounded-full border border-border bg-surface/50">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-            Secured by multi-agent consensus on Base L2
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-2 text-gray-500 text-xs">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>v0.1.3</span>
+            </div>
+
+            <div
+              className="group relative cursor-pointer"
+              onClick={() => copyToClipboard("npm install -g opmsec", "nav-install")}
+            >
+              <div className="absolute inset-0 border border-gray-600 bg-gray-900/20 transition-all duration-300 group-hover:border-white group-hover:shadow-lg group-hover:shadow-white/20"></div>
+              <div className="relative border border-gray-400 bg-transparent text-white font-medium px-6 py-2 text-sm transition-all duration-300 group-hover:border-white group-hover:bg-gray-900/30 transform translate-x-0.5 translate-y-0.5 group-hover:translate-x-0 group-hover:translate-y-0">
+                <div className="flex items-center gap-2">
+                  {copiedStates["nav-install"] ? (
+                    <Check className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <Copy className="w-4 h-4 text-gray-400" />
+                  )}
+                  <span className="text-gray-400">$</span>
+                  <span>Install</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      </nav>
 
-        <h1 className="text-6xl md:text-8xl font-bold tracking-tighter leading-[0.9] mb-6 animate-slide-up" style={{ animationDelay: '0.1s', animationFillMode: 'backwards' }}>
-          On-chain<br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-white/90 to-white/40">
-            Package Security
-          </span>
-        </h1>
-
-        <p className="text-lg md:text-xl text-muted max-w-2xl mx-auto mb-12 leading-relaxed animate-slide-up" style={{ animationDelay: '0.3s', animationFillMode: 'backwards' }}>
-          Cryptographic attestation, multi-model AI auditing, and immutable risk scoring for every npm package. All verified on-chain.
-        </p>
-
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up" style={{ animationDelay: '0.5s', animationFillMode: 'backwards' }}>
-          <div className="group relative">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-white/20 to-white/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity blur-sm" />
-            <code className="relative flex items-center gap-3 bg-surface border border-border rounded-lg px-5 py-3 font-mono text-sm cursor-pointer hover:border-border-light transition-colors">
-              <span className="text-muted">$</span>
-              <span>npm i -g opmsec</span>
-              <span className="text-muted/50">|</span>
-              <span className="text-muted text-xs">then: opm install {'<pkg>'}</span>
-            </code>
-          </div>
-          <a href={DOCS_URL} target="_blank" rel="noopener" className="px-5 py-3 text-sm font-medium text-bg bg-accent rounded-lg hover:bg-white transition-colors">
-            Read the docs
-          </a>
-        </div>
-      </div>
-
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-bg to-transparent" />
-    </section>
-  );
-}
-
-function Features() {
-  const features = [
-    {
-      title: 'Multi-Agent Consensus',
-      description: 'Three independent LLMs (Claude, Gemini, DeepSeek) analyze every package in parallel. Risk scores are intelligence-weighted using live Artificial Analysis benchmarks.',
-      detail: 'No single model failure point. Weighted aggregate scoring with model intelligence and coding indices.',
-      icon: '⬡',
-    },
-    {
-      title: 'Cryptographic Attestation',
-      description: 'Every package is checksummed, signed with the author\'s wallet, and registered on Base L2. Signatures are verified at install time.',
-      detail: 'SHA-256 checksum, ECDSA signature, on-chain registration. Tamper-evident by design.',
-      icon: '◈',
-    },
-    {
-      title: 'ZK-Verified Agent Registration',
-      description: 'Permissionless agent onboarding with zero-knowledge proof of benchmark accuracy. Agents must achieve 100% on labeled security datasets to participate.',
-      detail: 'Hash-commitment scheme with circom circuit reference. Accuracy proven without revealing test data.',
-      icon: '◎',
-    },
-    {
-      title: 'On-chain Risk Registry',
-      description: 'Immutable risk scores, author profiles, and audit reports stored on Base Sepolia. Every security assessment is a verifiable public record.',
-      detail: 'OPMRegistry.sol: authorizedAgents, packages, versionData, AgentScores. Fully queryable.',
-      icon: '▣',
-    },
-    {
-      title: 'CVE + Typosquat Detection',
-      description: 'OSV database integration for known vulnerabilities. Levenshtein-distance typosquat detection against the top 10,000 npm packages.',
-      detail: 'Real-time CVE lookups, automated fix suggestions, dependency confusion detection.',
-      icon: '◬',
-    },
-    {
-      title: 'Drop-in npm Replacement',
-      description: 'Full CLI compatibility: install, audit, check, push, fix. Every npm command works transparently with security verification layered on top.',
-      detail: 'opm install = npm install + on-chain verification + signature check + CVE scan.',
-      icon: '◯',
-    },
-  ];
-
-  return (
-    <section id="features" className="py-32 px-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-20">
-          <p className="text-xs font-mono text-muted mb-4 tracking-widest uppercase">Security Primitives</p>
-          <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
-            Defense in depth,<br />by default.
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-border rounded-2xl overflow-hidden">
-          {features.map((f, i) => (
-            <div key={i} className="bg-surface p-8 hover:bg-surface-hover transition-colors group">
-              <span className="text-2xl mb-4 block opacity-40 group-hover:opacity-100 transition-opacity">{f.icon}</span>
-              <h3 className="text-lg font-semibold mb-3">{f.title}</h3>
-              <p className="text-sm text-muted leading-relaxed mb-4">{f.description}</p>
-              <p className="text-xs font-mono text-muted/60 leading-relaxed">{f.detail}</p>
+      {/* Matrix background */}
+      <div className="fixed inset-0 opacity-10 pointer-events-none">
+        <div className="grid grid-cols-25 gap-1 h-full">
+          {matrixChars.map((char, i) => (
+            <div key={i} className="text-gray-500 text-xs animate-pulse">
+              {char}
             </div>
           ))}
         </div>
       </div>
-    </section>
-  );
-}
 
-function Architecture() {
-  return (
-    <section id="architecture" className="py-32 px-6 border-t border-border">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-20">
-          <p className="text-xs font-mono text-muted mb-4 tracking-widest uppercase">System Design</p>
-          <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
-            Verification pipeline
-          </h2>
-        </div>
+      {/* Hero */}
+      <section className="relative px-6 py-20 lg:px-12">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <div className="mb-8">
+              <pre className="text-white text-[10px] sm:text-sm md:text-xl lg:text-2xl font-bold leading-tight inline-block tracking-wide drop-shadow-[0_0_12px_rgba(255,255,255,0.3)]">{heroAsciiText}</pre>
+            </div>
 
-        <div className="relative">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {[
-              { step: '01', title: 'Pack & Sign', desc: 'SHA-256 checksum, ECDSA signature via author wallet' },
-              { step: '02', title: 'Multi-Agent Scan', desc: '3 LLMs analyze source in parallel, each submits risk score' },
-              { step: '03', title: 'Weighted Consensus', desc: 'Intelligence-weighted aggregate via Artificial Analysis indices' },
-              { step: '04', title: 'On-chain Registry', desc: 'Package, scores, report URI registered on Base Sepolia' },
-              { step: '05', title: 'Install Verify', desc: 'Signature + on-chain score + CVE check at install time' },
-            ].map((s, i) => (
-              <div key={i} className="relative">
-                <div className="bg-gradient-to-b from-white/5 to-transparent border border-border rounded-xl p-6 h-full">
-                  <span className="text-xs font-mono text-muted block mb-3">{s.step}</span>
-                  <h3 className="text-sm font-semibold mb-2">{s.title}</h3>
-                  <p className="text-xs text-muted leading-relaxed">{s.desc}</p>
+            <h1 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight">
+              On-chain<br />
+              <span className="bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">Package Security</span>
+            </h1>
+
+            <p className="text-lg text-gray-300 leading-relaxed max-w-3xl mx-auto mb-8">
+              Cryptographic attestation via ECDSA-signed manifests, multi-model AI auditing through
+              intelligence-weighted LLM consensus, and immutable risk scoring anchored to Base L2.
+              Zero-knowledge agent verification. Tamper-evident by design.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
+              <div
+                className="group relative cursor-pointer w-full sm:w-auto"
+                onClick={() => copyToClipboard("npm install -g opmsec", "hero-install")}
+              >
+                <div className="absolute inset-0 border border-gray-600 bg-gray-900/20 transition-all duration-300 group-hover:border-white group-hover:shadow-lg group-hover:shadow-white/20"></div>
+                <div className="relative border border-white bg-white text-black font-bold px-6 sm:px-10 py-4 text-base sm:text-lg transition-all duration-300 group-hover:bg-gray-100 group-hover:text-black transform translate-x-1 translate-y-1 group-hover:translate-x-0 group-hover:translate-y-0 text-center">
+                  <div className="flex items-center justify-center gap-2 sm:gap-3">
+                    {copiedStates["hero-install"] ? (
+                      <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
+                    ) : (
+                      <Copy className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
+                    )}
+                    <span className="text-gray-600 text-sm sm:text-base">$</span>
+                    <span className="text-sm sm:text-base">npm install -g opmsec</span>
+                  </div>
                 </div>
-                {i < 4 && (
-                  <div className="hidden md:block absolute top-1/2 -right-2.5 w-5 h-px bg-border" />
-                )}
+              </div>
+
+              <a href={DOCS_URL} target="_blank" rel="noopener" className="group relative cursor-pointer w-full sm:w-auto">
+                <div className="absolute inset-0 border-2 border-dashed border-gray-600 bg-gray-900/20 transition-all duration-300 group-hover:border-white group-hover:shadow-lg group-hover:shadow-white/20"></div>
+                <div className="relative border-2 border-dashed border-gray-400 bg-transparent text-white font-bold px-10 py-4 text-lg transition-all duration-300 group-hover:border-white group-hover:bg-gray-900/30 transform translate-x-1 translate-y-1 group-hover:translate-x-0 group-hover:translate-y-0">
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-400">→</span>
+                    <span>Read the Docs</span>
+                  </div>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          {/* Live terminal */}
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-gray-950 border border-gray-700 shadow-2xl backdrop-blur-sm">
+              <div className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-2">
+                    <div className="w-3 h-3 bg-red-500 hover:bg-red-400 transition-colors cursor-pointer"></div>
+                    <div className="w-3 h-3 bg-yellow-500 hover:bg-yellow-400 transition-colors cursor-pointer"></div>
+                    <div className="w-3 h-3 bg-green-500 hover:bg-green-400 transition-colors cursor-pointer"></div>
+                  </div>
+                  <span className="text-gray-400 text-sm">opm-terminal</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-gray-500 text-xs">LIVE</span>
+                </div>
+              </div>
+
+              <div className="p-6 min-h-[300px] bg-black">
+                <div className="space-y-2 text-sm">
+                  {terminalLines.map((line, index) => (
+                    <div
+                      key={index}
+                      className={`${line.startsWith("user@dev") ? "text-white" : "text-gray-300"} ${line.includes("✅") || line.includes("✓") ? "text-green-400" : ""}`}
+                    >
+                      {line}
+                    </div>
+                  ))}
+
+                  {!isExecuting && (
+                    <div className="text-white">
+                      <span className="text-green-400">user@dev</span>
+                      <span className="text-gray-500">:</span>
+                      <span className="text-blue-400">~/project</span>
+                      <span className="text-white">$ </span>
+                      <span className="text-white">{currentTyping}</span>
+                      <span className={`text-white ${showCursor ? "opacity-100" : "opacity-0"} transition-opacity`}>█</span>
+                    </div>
+                  )}
+
+                  {isExecuting && (
+                    <div className="flex items-center gap-2 text-gray-400">
+                      <div className="flex gap-1">
+                        <div className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                        <div className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                      </div>
+                      <span className="text-xs">Processing...</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-gray-800 flex justify-between text-xs text-gray-500">
+                  <div className="flex items-center gap-4">
+                    <span className="text-gray-500">Commands:</span>
+                    <span className="text-white">{currentCommand + 1}/{terminalSequences.length}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-gray-500">Agents:</span>
+                    <span className="text-gray-500">3 Active</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-gray-500">Chain:</span>
+                    <span className="text-gray-500">Base Sepolia</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* CLI heading below terminal */}
+          <div className="text-center mt-12 mb-10 max-w-4xl mx-auto">
+            <h2 className="text-3xl lg:text-4xl font-bold mb-4">Every command, security-first.</h2>
+            <p className="text-lg text-gray-400 max-w-3xl mx-auto">
+              Drop-in replacement for npm. Every operation gains cryptographic verification, AI-powered auditing, and on-chain attestation transparently.
+            </p>
+          </div>
+
+          {/* Command cards below terminal */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mt-10">
+            {[
+              { num: "01", title: "Push", desc: "ECDSA-sign package manifest, dispatch to 3 independent LLM agents for parallel static analysis, aggregate weighted risk scores, register immutable attestation on Base L2", cmd: "opm push" },
+              { num: "02", title: "Install", desc: "Resolve ENS identity, verify ECDSA signature against on-chain registry, validate SHA-256 checksum, cross-reference OSV CVE database before extraction", cmd: "opm install <pkg>" },
+              { num: "03", title: "Check", desc: "Traverse full dependency DAG, run Levenshtein-distance typosquat detection against top 10k packages, OSV CVE lookup, upload report to Fileverse (IPFS)", cmd: "opm check" },
+            ].map((card) => (
+              <div key={card.num} className="group relative h-full">
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 transform rotate-1 group-hover:rotate-2 transition-transform duration-300"></div>
+                <div className="relative bg-black border border-gray-700 p-6 h-full flex flex-col justify-between hover:border-white transition-all duration-300 group-hover:shadow-xl group-hover:shadow-white/10">
+                  <div className="text-center flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="w-12 h-12 mx-auto mb-4 bg-gray-900 border border-gray-600 flex items-center justify-center group-hover:border-white transition-colors group-hover:bg-gray-800">
+                        <span className="text-lg font-mono text-white group-hover:text-gray-100">{card.num}</span>
+                      </div>
+                      <h3 className="text-lg font-bold mb-3 text-white group-hover:text-gray-100">{card.title}</h3>
+                      <p className="text-gray-400 mb-4 group-hover:text-gray-300 text-sm leading-relaxed">{card.desc}</p>
+                    </div>
+                    <div
+                      className="bg-gray-900 border border-gray-700 p-2.5 font-mono text-xs text-left group-hover:border-gray-500 transition-colors group-hover:bg-gray-800 cursor-pointer flex items-center justify-between"
+                      onClick={() => copyToClipboard(card.cmd, `${card.num}-cmd`)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500">$ </span>
+                        <span className="text-white group-hover:text-gray-100">{card.cmd}</span>
+                      </div>
+                      {copiedStates[`${card.num}-cmd`] ? (
+                        <Check className="w-3 h-3 text-green-400" />
+                      ) : (
+                        <Copy className="w-3 h-3 text-gray-400 hover:text-white transition-colors" />
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         </div>
+      </section>
 
-        <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="border border-border rounded-xl p-6 bg-surface/50">
-            <p className="text-xs font-mono text-green-500/80 mb-3">CHAIN</p>
-            <p className="text-sm font-semibold mb-1">Base Sepolia (L2)</p>
-            <p className="text-xs text-muted">Low-cost, high-throughput settlement for agent score submissions and package registrations.</p>
-          </div>
-          <div className="border border-border rounded-xl p-6 bg-surface/50">
-            <p className="text-xs font-mono text-blue-400/80 mb-3">STORAGE</p>
-            <p className="text-sm font-semibold mb-1">Fileverse (IPFS)</p>
-            <p className="text-xs text-muted">Full audit reports uploaded to decentralized storage. URI stored on-chain for permanent reference.</p>
-          </div>
-          <div className="border border-border rounded-xl p-6 bg-surface/50">
-            <p className="text-xs font-mono text-purple-400/80 mb-3">IDENTITY</p>
-            <p className="text-sm font-semibold mb-1">ENS Resolution</p>
-            <p className="text-xs text-muted">Author addresses resolved to ENS names. On-chain author profiles with reputation scoring.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function CLISection() {
-  const commands = [
-    { cmd: 'opm push', desc: 'Sign, scan with 3 AI agents, publish, register on-chain' },
-    { cmd: 'opm install <pkg>', desc: 'Install with signature + on-chain + CVE verification' },
-    { cmd: 'opm check', desc: 'Scan all deps: typosquats, CVEs, AI analysis, Fileverse report' },
-    { cmd: 'opm fix', desc: 'Auto-fix typosquats and vulnerable versions' },
-    { cmd: 'opm audit', desc: 'On-chain + CVE audit for entire dependency tree' },
-    { cmd: 'opm info <pkg>', desc: 'On-chain metadata, agent scores, safest version' },
-    { cmd: 'opm register-agent', desc: 'Register a new security agent (ZK-verified)' },
-    { cmd: 'opm view <name.eth>', desc: 'ENS author profile, reputation, published packages' },
-  ];
-
-  return (
-    <section id="cli" className="py-32 px-6 border-t border-border">
-      <div className="max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
-          <div>
-            <p className="text-xs font-mono text-muted mb-4 tracking-widest uppercase">CLI Reference</p>
-            <h2 className="text-4xl font-bold tracking-tight mb-6">
-              Every command,<br />security-first.
-            </h2>
-            <p className="text-muted leading-relaxed mb-8">
-              Drop-in replacement for npm. Every operation gains cryptographic verification, AI-powered auditing, and on-chain attestation transparently.
-            </p>
-            <a href={DOCS_URL} target="_blank" rel="noopener" className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 border border-border rounded-lg hover:bg-surface transition-colors">
-              Full CLI documentation
-            </a>
+      {/* Features */}
+      <section className="px-6 py-20 lg:px-12 border-t border-gray-800" id="features">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl lg:text-5xl font-bold mb-6">Security Primitives</h2>
+            <p className="text-xl text-gray-400">Defense in depth, by default.</p>
           </div>
 
-          <div className="terminal-glow rounded-xl border border-border bg-surface overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-              <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
-              <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
-              <div className="w-3 h-3 rounded-full bg-[#28c840]" />
-              <span className="ml-2 text-xs text-muted font-mono">terminal</span>
-            </div>
-            <div className="p-5 font-mono text-sm space-y-3">
-              {commands.map((c, i) => (
-                <div key={i} className="flex gap-3">
-                  <span className="text-muted shrink-0">$</span>
-                  <div>
-                    <span className="text-green-400">{c.cmd}</span>
-                    <span className="text-muted/50 text-xs block mt-0.5">{c.desc}</span>
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-gray-950 border border-gray-800 shadow-2xl">
+              <div className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-2">
+                    <div className="w-3 h-3 bg-red-500"></div>
+                    <div className="w-3 h-3 bg-yellow-500"></div>
+                    <div className="w-3 h-3 bg-green-500"></div>
+                  </div>
+                  <span className="text-gray-400 text-sm">opm features --list</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-gray-500 text-xs">6 ACTIVE</span>
+                </div>
+              </div>
+
+              <div className="p-6 bg-black">
+                <div className="text-sm text-gray-400 mb-4">$ opm features --scan</div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-sm mb-6">
+                  {[
+                    { name: "multi-agent-consensus", status: "✓", desc: "N-of-M parallel LLM dispatch with intelligence-weighted aggregation via Artificial Analysis benchmarks. No single-model failure point." },
+                    { name: "cryptographic-attestation", status: "✓", desc: "SHA-256 content-addressable checksums + secp256k1 ECDSA signatures. Tamper-evident supply chain attestation." },
+                    { name: "zk-agent-verification", status: "✓", desc: "Hash-commitment ZK scheme with circom circuit reference. Accuracy proven without revealing labeled test data." },
+                    { name: "on-chain-registry", status: "✓", desc: "OPMRegistry.sol: authorizedAgents, packages, versionData, AgentScores mappings. Fully queryable immutable state." },
+                    { name: "cve-typosquat-detection", status: "✓", desc: "OSV advisory database integration + Levenshtein-distance analysis against top 10k npm packages. Dependency confusion detection." },
+                    { name: "drop-in-npm-replacement", status: "✓", desc: "Transparent npm CLI interop: install, audit, check, push, fix — each operation layered with cryptographic verification." },
+                  ].map((f) => (
+                    <div
+                      key={f.name}
+                      className="flex items-center justify-between py-2 px-3 hover:bg-gray-900 cursor-pointer group transition-all duration-200 border border-transparent hover:border-gray-700"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-green-400 group-hover:text-white transition-colors w-4">{f.status}</span>
+                        <span className="text-white group-hover:text-gray-200 transition-colors">{f.name}</span>
+                      </div>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 text-xs max-w-[250px] text-right">
+                        {f.desc}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-4 border-t border-gray-800">
+                  <div className="flex items-center gap-4 text-xs text-gray-500 justify-center">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>6 Active</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <span>Zero config</span>
+                    </div>
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
-  );
-}
+      </section>
 
-function ContractSection() {
-  return (
-    <section className="py-32 px-6 border-t border-border">
-      <div className="max-w-4xl mx-auto text-center">
-        <p className="text-xs font-mono text-muted mb-4 tracking-widest uppercase">Smart Contract</p>
-        <h2 className="text-4xl font-bold tracking-tight mb-6">
-          Fully on-chain. Fully verifiable.
-        </h2>
-        <p className="text-muted max-w-2xl mx-auto mb-12">
-          OPMRegistry.sol deployed on Base Sepolia. Every package registration, agent score submission, and author profile is an immutable on-chain record.
-        </p>
+      {/* AI Agents */}
+      <section className="px-6 py-20 lg:px-12 border-t border-gray-800" id="agents">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl lg:text-5xl font-bold mb-6">Multi-Agent Consensus</h2>
+            <p className="text-xl text-gray-400">N-of-M heterogeneous LLM ensemble with intelligence-weighted scoring derived from live Artificial Analysis quality and coding indices. Byzantine fault-tolerant by design.</p>
+          </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border rounded-xl overflow-hidden mb-12">
-          {[
-            { label: 'Packages', desc: 'Registered' },
-            { label: 'Agent Scores', desc: 'Submitted' },
-            { label: 'Authors', desc: 'Verified' },
-            { label: 'Reports', desc: 'On IPFS' },
-          ].map((s, i) => (
-            <div key={i} className="bg-surface p-6">
-              <p className="text-xs text-muted mb-1">{s.desc}</p>
-              <p className="text-sm font-semibold">{s.label}</p>
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-gray-950 border border-gray-800 shadow-2xl">
+              <div className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-2">
+                    <div className="w-3 h-3 bg-red-500"></div>
+                    <div className="w-3 h-3 bg-yellow-500"></div>
+                    <div className="w-3 h-3 bg-green-500"></div>
+                  </div>
+                  <span className="text-gray-400 text-sm">opm agents --status</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-gray-500 text-xs">3 AUTHORIZED</span>
+                </div>
+              </div>
+
+              <div className="p-6 bg-black">
+                <div className="text-sm text-gray-400 mb-4">$ opm agents --list</div>
+
+                <div className="space-y-2 font-mono text-sm">
+                  {[
+                    { id: "1", name: "claude-sonnet-4", provider: "anthropic", role: "Primary scanner", color: "text-green-400" },
+                    { id: "2", name: "gemini-2.5-flash", provider: "google", role: "Secondary analysis", color: "text-green-400" },
+                    { id: "3", name: "deepseek-chat", provider: "deepseek", role: "Tertiary verification", color: "text-green-400" },
+                  ].map((agent) => (
+                    <div
+                      key={agent.id}
+                      className="flex items-center justify-between py-2 px-4 hover:bg-gray-900 cursor-pointer group transition-all duration-200 border border-transparent hover:border-gray-700"
+                    >
+                      <div className="flex items-center gap-4">
+                        <span className="text-gray-500 w-6">[{agent.id}]</span>
+                        <span className={`${agent.color} group-hover:text-white transition-colors`}>●</span>
+                        <span className="text-white group-hover:text-gray-200 transition-colors">{agent.name}</span>
+                        <span className="text-gray-500 text-xs">({agent.provider})</span>
+                      </div>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 text-xs">
+                        {agent.role}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-gray-800">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="text-sm text-gray-400">
+                      <div className="font-mono text-xs text-gray-500 space-y-1">
+                        <div>$ opm register-agent --name my-agent --model gpt-5.4</div>
+                        <div>$ opm info express  # View agent scores</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-6 text-xs text-gray-500">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>3 Active</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse"></div>
+                        <span>ZK-verified</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
 
-        <div className="inline-flex items-center gap-3">
-          <a
-            href={BASESCAN}
-            target="_blank"
-            rel="noopener"
-            className="flex items-center gap-2 text-sm font-mono text-muted hover:text-accent transition-colors px-4 py-2 border border-border rounded-lg"
-          >
-            <span className="w-2 h-2 rounded-full bg-green-500" />
-            View on BaseScan
-          </a>
-          <a
-            href={`${GITHUB_URL}/blob/main/packages/contracts/contracts/OPMRegistry.sol`}
-            target="_blank"
-            rel="noopener"
-            className="flex items-center gap-2 text-sm text-muted hover:text-accent transition-colors px-4 py-2 border border-border rounded-lg"
-          >
-            Source Code
-          </a>
+            <div className="mt-6 text-center">
+              <div className="inline-flex items-center gap-2 text-gray-400 text-sm">
+                <span className="text-green-400">●</span>
+                <span>Permissionless registration • 100% benchmark accuracy required • Scores on-chain</span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </section>
-  );
-}
+      </section>
 
-function Footer() {
-  return (
-    <footer className="border-t border-border py-12 px-6">
-      <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-        <a href="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-          <Logo size={18} />
-          <span className="font-semibold tracking-tight">opm</span>
-          <span className="text-xs text-muted">On-chain Package Manager</span>
-        </a>
-        <div className="flex items-center gap-6 text-sm text-muted">
-          <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-accent transition-colors">Docs</a>
-          <a href={GITHUB_URL} target="_blank" rel="noopener" className="hover:text-accent transition-colors">GitHub</a>
-          <a href={NPM_URL} target="_blank" rel="noopener" className="hover:text-accent transition-colors">npm</a>
-          <a href={BASESCAN} target="_blank" rel="noopener" className="hover:text-accent transition-colors">Contract</a>
+      {/* Pipeline */}
+      <section className="px-6 py-16 lg:px-12 border-t border-gray-800" id="pipeline">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl lg:text-4xl font-bold mb-4">Verification Pipeline</h2>
+            <p className="text-lg text-gray-400 max-w-2xl mx-auto">
+              Five-stage cryptographic attestation pipeline: from ECDSA signing through multi-agent consensus to on-chain settlement. Every package is verified before extraction to node_modules.
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-gray-950 border border-gray-800 shadow-xl">
+              <div className="flex items-center justify-between px-6 py-3 bg-gray-900 border-b border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-2">
+                    <div className="w-3 h-3 bg-red-500"></div>
+                    <div className="w-3 h-3 bg-yellow-500"></div>
+                    <div className="w-3 h-3 bg-green-500"></div>
+                  </div>
+                  <span className="text-gray-400 text-sm">opm pipeline --visualize</span>
+                </div>
+              </div>
+
+              <div className="p-6 bg-black">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 font-mono text-sm">
+                  {[
+                    { step: "01", title: "Pack & Sign", desc: "SHA-256 content-addressable checksum + secp256k1 ECDSA signature via author wallet" },
+                    { step: "02", title: "Multi-Agent Scan", desc: "Parallel dispatch to N heterogeneous LLMs; each submits independent risk vector" },
+                    { step: "03", title: "Weighted Consensus", desc: "Intelligence-weighted aggregate via Artificial Analysis quality + coding indices" },
+                    { step: "04", title: "On-chain Registry", desc: "Package metadata, agent scores, Fileverse report URI settled on Base Sepolia L2" },
+                    { step: "05", title: "Install Verify", desc: "ECDSA signature + on-chain score lookup + OSV CVE cross-reference at extraction time" },
+                  ].map((s, i) => (
+                    <div key={i} className="relative group">
+                      <div className="border border-gray-700 p-4 hover:border-white transition-all duration-300 group-hover:bg-gray-900">
+                        <span className="text-xs text-gray-500 block mb-2">{s.step}</span>
+                        <h3 className="text-sm font-semibold mb-1 text-white">{s.title}</h3>
+                        <p className="text-xs text-gray-500">{s.desc}</p>
+                      </div>
+                      {i < 4 && (
+                        <div className="hidden md:block absolute top-1/2 -right-2.5 w-5 h-px bg-gray-700" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <p className="text-xs text-muted/50">MIT License</p>
-      </div>
-    </footer>
-  );
-}
+      </section>
 
-export default function Home() {
-  return (
-    <main>
-      <Nav />
-      <Hero />
-      <Features />
-      <Architecture />
-      <CLISection />
-      <ContractSection />
-      <Footer />
-    </main>
-  );
+      {/* Contract info */}
+      <section className="px-6 py-16 lg:px-12 border-t border-gray-800">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-4">Fully on-chain. Fully verifiable.</h2>
+          <p className="text-gray-400 mb-8">OPMRegistry.sol deployed on Base Sepolia L2. Every package registration, agent score submission, ZK-verified agent authorization, and ENS-resolved author profile is an immutable on-chain record. Fully queryable, fully verifiable.</p>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-800 mb-8">
+            {[
+              { label: "Packages", desc: "Registered" },
+              { label: "Agent Scores", desc: "Submitted" },
+              { label: "Authors", desc: "Verified" },
+              { label: "Reports", desc: "On IPFS" },
+            ].map((s, i) => (
+              <div key={i} className="bg-black p-6">
+                <p className="text-xs text-gray-500 mb-1">{s.desc}</p>
+                <p className="text-sm font-semibold">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="inline-flex items-center gap-4">
+            <a
+              href={BASESCAN}
+              target="_blank"
+              rel="noopener"
+              className="flex items-center gap-2 text-sm font-mono text-gray-400 hover:text-white transition-colors px-4 py-2 border border-gray-700 hover:border-white"
+            >
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              View on BaseScan
+            </a>
+            <a
+              href={`${GITHUB_URL}/blob/main/packages/contracts/contracts/OPMRegistry.sol`}
+              target="_blank"
+              rel="noopener"
+              className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors px-4 py-2 border border-gray-700 hover:border-white"
+            >
+              Source Code
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-800 px-6 py-12 lg:px-12 bg-gray-950">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-2.5">
+              <span className="font-bold">OPM</span>
+              <span className="text-xs text-gray-500">On-chain Package Manager</span>
+            </div>
+            <div className="flex items-center gap-6 text-sm text-gray-500">
+              <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-white transition-colors">Docs</a>
+              <a href={GITHUB_URL} target="_blank" rel="noopener" className="hover:text-white transition-colors">GitHub</a>
+              <a href={NPM_URL} target="_blank" rel="noopener" className="hover:text-white transition-colors">npm</a>
+              <a href={BASESCAN} target="_blank" rel="noopener" className="hover:text-white transition-colors">Contract</a>
+            </div>
+            <p className="text-xs text-gray-700">MIT License</p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  )
 }

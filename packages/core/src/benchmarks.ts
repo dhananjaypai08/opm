@@ -448,3 +448,119 @@ export function evaluateBenchmark(
     reason: passed ? 'Correctly classified' : reason,
   };
 }
+
+/* ─── Batch (single-call) benchmark for fast agent registration ─── */
+
+/**
+ * Response-format-only instructions appended after the candidate's own system prompt.
+ * This tells the model HOW to respond, but the candidate's prompt determines
+ * the actual analysis behaviour.
+ */
+export const BATCH_RESPONSE_FORMAT_INSTRUCTIONS = `
+
+For this benchmark you will be given a series of npm packages (labelled Case 1 through Case N). For each package you must decide whether it should be FLAGGED or SAFE.
+
+You MUST respond with a valid JSON object matching this exact schema — no markdown, no explanation outside the JSON:
+
+{
+  "answers": [
+    { "case": 1, "flagged": <boolean> },
+    { "case": 2, "flagged": <boolean> },
+    ...
+  ]
+}
+
+FLAGGED = true means the package is malicious, dangerous, or high/critical risk.
+SAFE = false means the package is benign and low risk.`;
+
+/**
+ * Build the full system prompt used during batch benchmarking.
+ * If the candidate supplied a custom system prompt it is used as-is,
+ * with the response-format instructions appended.
+ * If no custom prompt is provided, fall back to the default OPM security
+ * auditor prompt so the model still knows its role.
+ */
+export function buildBatchSystemPrompt(candidateSystemPrompt?: string): string {
+  const base = candidateSystemPrompt || SYSTEM_PROMPT;
+  return base + BATCH_RESPONSE_FORMAT_INSTRUCTIONS;
+}
+
+export interface BatchBenchmarkAnswer {
+  case: number;
+  flagged: boolean;
+}
+
+export interface BatchBenchmarkResponse {
+  answers: BatchBenchmarkAnswer[];
+}
+
+export interface BatchBenchmarkResult {
+  caseId: string;
+  category: string;
+  expectedFlagged: boolean;
+  actualFlagged: boolean;
+  passed: boolean;
+}
+
+/**
+ * Determine the expected "flagged" label for a benchmark case.
+ * HIGH / CRITICAL → flagged=true, LOW / MEDIUM → flagged=false.
+ */
+export function expectedFlagForCase(bench: BenchmarkCase): boolean {
+  return bench.expected.risk_level === 'HIGH' || bench.expected.risk_level === 'CRITICAL';
+}
+
+/**
+ * Build a single prompt containing all benchmark cases so the agent
+ * can return all answers in one LLM call.
+ */
+export function buildBatchBenchmarkPrompt(cases: BenchmarkCase[]): string {
+  const sections = cases.map((bench, i) => {
+    const depsStr = Object.entries(bench.metadata.dependencies || {})
+      .map(([k, v]) => `${k}@${v}`)
+      .join(', ') || 'none';
+
+    const scriptsStr = ['preinstall', 'postinstall', 'prepare']
+      .map((s) => `${s}: ${(bench.metadata.scripts as Record<string, string>)?.[s] || 'none'}`)
+      .join(', ');
+
+    const codeStr = bench.sourceFiles
+      .map((f) => `  File: ${f.path} (${f.size} bytes)\n  \`\`\`\n  ${f.content}\n  \`\`\``)
+      .join('\n');
+
+    const cveStr = bench.knownCVEs.length > 0
+      ? `  Known CVEs: ${bench.knownCVEs.map((c) => `${c.id}: ${c.summary}`).join('; ')}\n`
+      : '';
+
+    return `### Case ${i + 1}
+- Name: ${bench.metadata.name}@${bench.metadata.version}
+- Author: ${bench.metadata.author || 'unknown'}
+- License: ${bench.metadata.license || 'none'}
+- Dependencies: ${depsStr}
+- Install scripts: ${scriptsStr}
+${cveStr}${codeStr}`;
+  });
+
+  return `Analyze each of the following ${cases.length} npm packages and decide if it should be FLAGGED or SAFE. Respond with the JSON schema from your system instructions.\n\n${sections.join('\n\n')}`;
+}
+
+/**
+ * Evaluate batch answers against ground-truth labels.
+ */
+export function evaluateBatchBenchmark(
+  cases: BenchmarkCase[],
+  answers: BatchBenchmarkAnswer[],
+): BatchBenchmarkResult[] {
+  return cases.map((bench, i) => {
+    const expected = expectedFlagForCase(bench);
+    const answer = answers.find((a) => a.case === i + 1);
+    const actual = answer?.flagged ?? false;
+    return {
+      caseId: bench.id,
+      category: bench.category,
+      expectedFlagged: expected,
+      actualFlagged: actual,
+      passed: expected === actual,
+    };
+  });
+}
