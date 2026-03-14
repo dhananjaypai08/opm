@@ -14,7 +14,8 @@
     "build:contracts": "cd packages/contracts && npx hardhat compile",
     "deploy:contracts": "cd packages/contracts && npx hardhat run scripts/deploy.ts --network baseSepolia",
     "test:contracts": "cd packages/contracts && npx hardhat test",
-    "scan": "bun run packages/scanner/src/index.ts"
+    "scan": "bun run packages/scanner/src/index.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@ensdomains/ensjs": "^4.2.2",

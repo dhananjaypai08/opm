@@ -1,0 +1,1 @@
+cd packages/web && bun run build
