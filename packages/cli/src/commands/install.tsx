@@ -12,6 +12,8 @@ import { checkPackageWithChainPatrol } from '../services/chainpatrol';
 import { queryOSV, getOSVSeverity, getFixedVersion, type OSVVulnerability } from '../services/osv';
 import { resolveVersion, findSafeVersion, isENSVersion, type ResolvedVersion } from '../services/version';
 import { resolveAddress } from '../services/ens';
+import { readOPMRecords, readPackageENSRecords } from '../services/ens-records';
+import type { OPMENSRecords } from '@opm/core';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -92,6 +94,7 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
   });
   const [result, setResult] = useState<SecurityResult | null>(null);
   const [ensDetail, setEnsDetail] = useState<string | undefined>(undefined);
+  const [ensRecords, setEnsRecords] = useState<OPMENSRecords>({});
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
@@ -120,6 +123,22 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
         r.ensName = resolved.ensName;
         setResult({ ...r });
         setEnsDetail(`${resolved.ensName} → v${resolved.version} (${resolved.reason})`);
+
+        if (resolved.ensName) {
+          const [opmRecs, pkgRecs] = await Promise.allSettled([
+            readOPMRecords(resolved.ensName),
+            readPackageENSRecords(resolved.ensName, packageName),
+          ]);
+          const merged: OPMENSRecords = {};
+          if (pkgRecs.status === 'fulfilled') Object.assign(merged, pkgRecs.value);
+          if (opmRecs.status === 'fulfilled') {
+            for (const [k, v] of Object.entries(opmRecs.value)) {
+              if (v && !(merged as any)[k]) (merged as any)[k] = v;
+            }
+          }
+          setEnsRecords(merged);
+        }
+
         update('ens', 'done');
       } catch (err: any) {
         setEnsDetail(err?.message || 'ENS resolution failed');
@@ -279,13 +298,25 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
             {result.resolved.authorAddress && (
               <Text color="gray"> ({truncateAddress(result.resolved.authorAddress)})</Text>
             )}
-            <Text color="green"> ✓ on-chain</Text>
+            <Text color="green"> on-chain</Text>
           </Box>
           <Box>
             <Text color="gray">Version: </Text>
             <Text color="cyan">{result.resolvedVersion}</Text>
             <Text color="gray"> (safest on-chain version)</Text>
           </Box>
+          {ensRecords.fileverse && (
+            <Box>
+              <Text color="gray">Report:  </Text>
+              <Text color="green">{ensRecords.fileverse.length > 50 ? ensRecords.fileverse.slice(0, 50) + '...' : ensRecords.fileverse}</Text>
+            </Box>
+          )}
+          {ensRecords.riskScore && (
+            <Box>
+              <Text color="gray">Risk:    </Text>
+              <Text color="cyan">{ensRecords.riskScore}/100 (from ENS)</Text>
+            </Box>
+          )}
         </Box>
       )}
 
@@ -421,6 +452,12 @@ function SingleInstall({ packageName, version }: { packageName: string; version?
             <Box marginLeft={2}>
               <Text color="gray">Author:   </Text>
               <Text color="green">{result.ensName}</Text>
+            </Box>
+          )}
+          {ensRecords.fileverse && (
+            <Box marginLeft={2}>
+              <Text color="gray">Fileverse:</Text>
+              <Text color="green"> {ensRecords.fileverse.length > 45 ? ensRecords.fileverse.slice(0, 45) + '...' : ensRecords.fileverse}</Text>
             </Box>
           )}
           {result.warning && !result.blocked && !result.autoBumped && (
@@ -634,16 +671,25 @@ function BulkInstall() {
       return;
     }
 
-    // Build npm install command with correct versions
+    // Update package.json with resolved versions before installing
     const bumpedDeps = checked.filter((d) => d.autoBumped || d.ensResolved);
+    if (bumpedDeps.length > 0) {
+      const freshPkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      for (const dep of bumpedDeps) {
+        const resolved = `^${dep.version}`;
+        if (freshPkg.dependencies && dep.name in freshPkg.dependencies) {
+          freshPkg.dependencies[dep.name] = resolved;
+        }
+        if (freshPkg.devDependencies && dep.name in freshPkg.devDependencies) {
+          freshPkg.devDependencies[dep.name] = resolved;
+        }
+      }
+      fs.writeFileSync(pkgPath, JSON.stringify(freshPkg, null, 2) + '\n');
+    }
+
     setInstallStatus('running');
     try {
-      if (bumpedDeps.length > 0) {
-        const args = checked.map((d) => `${d.name}@${d.version}`).join(' ');
-        execSync(`npm install ${args}`, { encoding: 'utf-8', stdio: 'pipe', cwd: process.cwd() });
-      } else {
-        execSync('npm install', { encoding: 'utf-8', stdio: 'pipe', cwd: process.cwd() });
-      }
+      execSync('npm install', { encoding: 'utf-8', stdio: 'pipe', cwd: process.cwd() });
     } catch { /* non-fatal */ }
     setInstallStatus('done');
   }

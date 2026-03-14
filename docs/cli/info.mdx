@@ -1,11 +1,11 @@
 ---
 title: 'opm info'
-description: 'Show on-chain security information for a package.'
+description: 'Show on-chain security information and ENS records for a package.'
 ---
 
 # opm info
 
-Show on-chain security information for a package. Displays author, checksum, signature, ENS name, report URI, agent scores, aggregate score, and safest version.
+Show on-chain security information and ENS text records for a package. Displays author, checksum, signature, ENS name, report URI, agent scores, aggregate score, safest version, and OPM ENS records.
 
 ## Usage
 
@@ -23,6 +23,8 @@ opm info lodash@4.17.21
 
 ## Output
 
+### On-Chain Data
+
 | Field | Description |
 |-------|-------------|
 | Author | Wallet address (with ENS resolution when available) |
@@ -31,12 +33,28 @@ opm info lodash@4.17.21
 | ENS name | Author identity (e.g. <code>vitalik.eth</code>) |
 | Report URI | Link to Fileverse audit report |
 | Agent scores | Per-agent risk scores and reasoning |
-| Aggregate score | Mean risk score (0–100) |
+| Aggregate score | Mean risk score (0-100) |
 | Safest version | Lowest-risk version in recent releases |
+
+### ENS Records
+
+If the package author has an ENS name, OPM reads and displays `opm.*` text records:
+
+| Record | Description |
+|--------|-------------|
+| `opm.version` | Latest version from ENS |
+| `opm.checksum` | Checksum from ENS text record |
+| `opm.fileverse` | Fileverse content hash (clickable link to audit report) |
+| `opm.risk_score` | Risk score from ENS |
+| `opm.signature` | Signature from ENS |
+| `opm.contract` | OPM Registry contract address |
+| `opm.packages` | All packages published by this author |
+
+Per-package records (`opm.pkg.<name>.*`) are read first, falling back to author-level records.
 
 ## Links
 
-- **Fileverse report** — Full AI audit when report URI is set
+- **Fileverse report** — Full AI audit from on-chain report URI or ENS `opm.fileverse` record
 - **BaseScan** — Contract and transaction links
 
 <Note>

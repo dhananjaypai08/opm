@@ -1,0 +1,109 @@
+---
+title: 'ENS Text Records'
+description: 'Package metadata stored on ENS for decentralized discovery.'
+---
+
+# ENS Text Records
+
+OPM maps package metadata to ENS text records, creating a decentralized layer for package discovery and verification. When you publish a package via `opm push`, the Fileverse content hash, current version, checksum, risk score, and signature are all written to your ENS name as text records.
+
+## Record Schema
+
+OPM uses standardized text record keys prefixed with `opm.` to avoid collisions with other applications.
+
+### Author-Level Records
+
+Written to the author's ENS name (e.g. `djpai.eth`):
+
+| Record Key | Description | Example |
+|------------|-------------|---------|
+| `opm.version` | Latest package version published | `1.2.3` |
+| `opm.checksum` | SHA-256 checksum of latest tarball | `0x8a3f...` |
+| `opm.fileverse` | Fileverse/IPFS report URI | `https://ddocs.new/d/abc...` |
+| `opm.risk_score` | Aggregate AI risk score (0-100) | `12` |
+| `opm.signature` | ECDSA signature of checksum | `0x3d7a...` |
+| `opm.contract` | OPM Registry contract address | `0x1668...` |
+| `opm.packages` | Comma-separated list of published packages | `express,lodash` |
+
+### Per-Package Records
+
+For each package, records are namespaced under `opm.pkg.<name>`:
+
+| Record Key | Description |
+|------------|-------------|
+| `opm.pkg.<name>.version` | Version of this specific package |
+| `opm.pkg.<name>.checksum` | Package checksum |
+| `opm.pkg.<name>.fileverse` | Fileverse report URI for this package |
+| `opm.pkg.<name>.risk_score` | Risk score for this package |
+| `opm.pkg.<name>.signature` | Signature for this package |
+
+## How It Works
+
+### During `opm push`
+
+After on-chain registration succeeds, OPM:
+
+1. Reads existing OPM records from your ENS name
+2. Builds updated records with the new package data
+3. Writes all records via `setText()` on your ENS resolver
+4. Attempts to create a subname (e.g. `express.djpai.eth`) if you own the parent name
+
+<Note>
+Writing ENS records requires the signer (`OPM_SIGNING_KEY`) to be the manager/owner of the ENS name. If not, the step is skipped gracefully.
+</Note>
+
+### During `opm info` / `opm view`
+
+When viewing package or author information, OPM reads the `opm.*` text records and displays them alongside on-chain data. This provides a second verification layer independent of the smart contract.
+
+### During `opm install`
+
+When installing via ENS (e.g. `opm install express@djpai.eth`), OPM reads the Fileverse hash and risk score from the author's ENS records and displays them in the install pipeline.
+
+## Subnames
+
+OPM supports ENS subnames for per-package namespacing. If you own an ENS name (e.g. `djpai.eth`), OPM will attempt to create subnames like `express.djpai.eth` during `opm push`. Each subname gets its own text records.
+
+This is useful for:
+
+- **Organizational packages**: `@myorg/utils.myorg.eth`
+- **Package discovery**: Look up `express.djpai.eth` to find the author's version
+- **Decentralized package registry**: Package metadata lives on ENS, not just the contract
+
+<Warning>
+Subname creation requires ownership of the parent ENS name and ETH for gas on the chain where the name lives (Ethereum Mainnet or Sepolia).
+</Warning>
+
+## Fileverse Content Hash Mapping
+
+The `opm.fileverse` record maps the Fileverse content hash to ENS, making audit reports discoverable through ENS resolution. Anyone can look up `opm.fileverse` on an author's ENS name to find the latest security audit report without querying the OPM smart contract.
+
+```bash
+# View an author's Fileverse report via ENS
+opm view djpai.eth
+# → Shows opm.fileverse: https://ddocs.new/d/...
+```
+
+## Verification Flow
+
+```
+Author pushes package
+    ↓
+OPM signs, scans, publishes to npm
+    ↓
+Registers on OPM Registry (Base Sepolia)
+    ↓
+Writes text records to ENS:
+  - opm.version → "1.2.3"
+  - opm.checksum → "0x8a3f..."
+  - opm.fileverse → "https://ddocs.new/d/abc"
+  - opm.risk_score → "12"
+  - opm.signature → "0x3d7a..."
+  - opm.packages → "express,lodash"
+    ↓
+Consumer runs: opm info express
+    ↓
+OPM reads on-chain data + ENS text records
+    ↓
+Cross-references for integrity verification
+```

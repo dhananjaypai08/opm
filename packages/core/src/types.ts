@@ -143,3 +143,13 @@ export interface CheckReport {
   deps: CheckDepResult[];
   agents: CheckAgentResult[];
 }
+
+export interface OPMENSRecords {
+  version?: string;
+  checksum?: string;
+  fileverse?: string;
+  riskScore?: string;
+  packages?: string;
+  signature?: string;
+  contract?: string;
+}

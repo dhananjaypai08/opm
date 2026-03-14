@@ -105,14 +105,14 @@ function Help() {
       <Header />
       <Box flexDirection="column" marginLeft={2}>
         <Text color="cyan" bold>Security commands:</Text>
-        <Text>  opm push [--token t] [--otp c]  Sign, scan, publish, register</Text>
+        <Text>  opm push [--token t] [--otp c]  Sign, scan, publish, register + ENS records</Text>
         <Text>  opm install [pkg[@ver]] Install with on-chain security verification</Text>
         <Text>  opm install pkg@ens.eth Install safest version by ENS author</Text>
         <Text>  opm check               Scan all deps: typosquats, CVEs, AI analysis</Text>
         <Text>  opm fix                 Auto-fix typosquats and vulnerable versions</Text>
         <Text>  opm audit               Scan all deps against on-chain security data</Text>
-        <Text>  opm info {'<pkg>'}            Show on-chain security info for a package</Text>
-        <Text>  opm view {'<name.eth>'}      Show author profile, packages, and risk scores</Text>
+        <Text>  opm info {'<pkg>'}            Show on-chain + ENS record data for a package</Text>
+        <Text>  opm view {'<name.eth>'}      Author profile, OPM records, packages</Text>
         <Text>  opm whois {'<name>'}          Look up an ENS identity on OPM</Text>
         <Text> </Text>
         <Text color="cyan" bold>Agent commands:</Text>
@@ -135,7 +135,7 @@ function Help() {
         <Text>  opm pack                 Create a tarball</Text>
         <Text> </Text>
         <Text color="gray">Aliases:  i/add → install, rm → uninstall, ls → list</Text>
-        <Text color="gray">          view name.eth → author profile, view pkg → info</Text>
+        <Text color="gray">          view name.eth → author profile + OPM ENS records</Text>
         <Text color="gray">          pkg@name.eth → ENS-resolved safest version by author</Text>
         <Text> </Text>
         <Text color="cyan" bold>Environment (install/audit/info/view need no config):</Text>

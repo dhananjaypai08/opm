@@ -1,11 +1,11 @@
 ---
 title: 'opm view / opm whois'
-description: 'Author profile and published packages.'
+description: 'Author profile, OPM ENS records, and published packages.'
 ---
 
 # opm view / opm whois
 
-Show author profile and published packages. Resolves ENS identity and displays on-chain reputation.
+Show author profile, OPM ENS records, and published packages. Resolves ENS identity, reads OPM text records, and displays on-chain reputation.
 
 ## Usage
 
@@ -43,10 +43,22 @@ opm whois vitalik
 - **Packages published** — Count from OPMRegistry
 - **Avg reputation** — Risk badge (lower = better)
 
+### OPM ENS Records
+
+If the author has published via OPM, the following text records are displayed:
+
+- **opm.version** — Latest version published
+- **opm.checksum** — Tarball checksum
+- **opm.fileverse** — Fileverse content hash / report URI (clickable link)
+- **opm.risk_score** — Aggregate risk score
+- **opm.signature** — ECDSA signature
+- **opm.contract** — OPM Registry contract address (clickable BaseScan link)
+- **opm.packages** — Comma-separated list of all packages published by this author
+
 ### Published Packages
 
 For each package: name, version, risk score, checksum, signature status, and report URI link.
 
 <Note>
-No environment variables are required. ENS resolution uses public resolvers.
+No environment variables are required. ENS resolution and text record reading use public resolvers.
 </Note>

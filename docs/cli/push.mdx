@@ -1,11 +1,11 @@
 ---
 title: 'opm push'
-description: 'Sign, scan, publish, and register a package on-chain.'
+description: 'Sign, scan, publish, register on-chain, and write ENS records.'
 ---
 
 # opm push
 
-Sign, scan, publish, and register a package on-chain. The full verification pipeline runs before publishing to npm and registering on the OPMRegistry.
+Sign, scan, publish, register a package on-chain, and write package metadata to ENS text records. The full verification pipeline runs before publishing to npm and registering on the OPMRegistry.
 
 ## What It Does
 
@@ -20,7 +20,7 @@ Sign, scan, publish, and register a package on-chain. The full verification pipe
     Resolves your wallet address to an ENS name (Base Sepolia, then Ethereum Mainnet fallback).
   </Step>
   <Step title="Security scan">
-    Runs 3 AI agents in parallel (Claude, Gemini, DeepSeek) to analyze the package. Each agent submits a risk score (0–100) and reasoning on-chain.
+    Runs 3 AI agents in parallel (Claude, Gemini, DeepSeek) to analyze the package. Each agent submits a risk score (0-100) and reasoning on-chain.
   </Step>
   <Step title="Risk check">
     If aggregate score ≥ 80 or risk level is CRITICAL, publishing is blocked.
@@ -30,6 +30,9 @@ Sign, scan, publish, and register a package on-chain. The full verification pipe
   </Step>
   <Step title="Register on-chain">
     Calls <code>OPMRegistry.registerPackage()</code> with package name, version, checksum, signature, and ENS name.
+  </Step>
+  <Step title="Write ENS records">
+    Writes package metadata to the author's ENS text records: <code>opm.version</code>, <code>opm.checksum</code>, <code>opm.fileverse</code>, <code>opm.risk_score</code>, <code>opm.signature</code>, <code>opm.packages</code>. Also creates a package subname (e.g. <code>express.djpai.eth</code>) if the author owns the parent name.
   </Step>
 </Steps>
 
@@ -88,11 +91,31 @@ After a successful push, the following data is recorded on the OPMRegistry:
 | Agent scores | Per-agent risk scores and reasoning |
 | Report URI | Fileverse/IPFS link to the full audit report |
 
+## What Gets Written to ENS
+
+If the author has an ENS name and the signing key owns it, the following text records are set:
+
+| Record | Value |
+|--------|-------|
+| `opm.version` | Package version |
+| `opm.checksum` | SHA-256 checksum |
+| `opm.fileverse` | Fileverse report URI (content hash) |
+| `opm.risk_score` | Aggregate risk score |
+| `opm.signature` | ECDSA signature |
+| `opm.contract` | OPM Registry contract address |
+| `opm.packages` | Comma-separated list of all published packages |
+| `opm.pkg.<name>.version` | Per-package version |
+| `opm.pkg.<name>.fileverse` | Per-package Fileverse hash |
+
+Records are batched via `multicall` when the resolver supports it.
+
 ## Output
 
 - **Etherscan links** for every transaction: score submissions (one per agent) and package registration
+- **ENS record transaction** link on Ethereum Sepolia/Mainnet
 - **Report URI** link when uploaded to Fileverse
 - **npm package URL** on successful publish
+- **Subname** created (e.g. `express.djpai.eth`) if parent name is owned
 
 <Note>
 If 2FA is enabled on your npm account, use <code>opm push --otp &lt;code&gt;</code> or an npm automation token with "bypass 2FA" enabled.

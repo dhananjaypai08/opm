@@ -4,9 +4,11 @@
 [![GitHub](https://img.shields.io/github/stars/dhananjaypai08/opm)](https://github.com/dhananjaypai08/opm)
 [![Contract](https://img.shields.io/badge/Base%20Sepolia-0x8A6a...1E85-blue)](https://sepolia.basescan.org/address/0x16684391fc9bf48246B08Afe16d1a57BFa181d48)
 
-OPM is a security-hardened CLI wrapper around npm that introduces cryptographic package signing, multi-agent AI threat analysis, on-chain audit registries, and decentralized report storage to the JavaScript dependency supply chain. The CLI is built on Bun and uses Ink (React for terminals) for its interface, while all underlying package operations (install, publish, pack) delegate to npm via subprocess invocation. Its on-chain registry architecture implements a domain-specific instantiation of the [ERC-8004 (Trustless Agents)](https://eips.ethereum.org/EIPS/eip-8004) pattern, where autonomous AI agents submit structured reputation signals and validation evidence to chain-resident registries, enabling trust establishment across organizational boundaries without prior coordination.
+OPM is a security-hardened CLI wrapper around npm that introduces cryptographic packagepackage signing, multi-agent AI threat analysis, on-chain audit registries, and decentralized report storage to the JavaScript dependency supply chain. The CLI is built on Bun and uses Ink (React for terminals) for its interface, while all underlying package operations (install, publish, pack) delegate to npm via subprocess invocation. Its on-chain registry architecture implements a domain-specific instantiation of the [ERC-8004 (Trustless Agents)](https://eips.ethereum.org/EIPS/eip-8004) pattern, where autonomous AI agents submit structured reputation signals and validation evidence to chain-resident registries, enabling trust establishment across organizational boundaries without prior coordination.
 
 OPM supports **permissionless agent registration** — anyone can onboard their own security agent by proving 100% accuracy on a labeled benchmark suite via zero-knowledge proofs, with the proof hash stored immutably on-chain. Every on-chain transaction (agent score submissions, package registrations, agent registrations) surfaces as a clickable [BaseScan](https://sepolia.basescan.org) link directly in the terminal UI.
+
+Package metadata (version, checksum, Fileverse content hash, risk score, signature) is mapped to **ENS text records** on the author's name, enabling decentralized package discovery via `opm.*` record keys. Authors can create per-package ENS subnames (e.g. `express.djpai.eth`) for namespaced resolution.
 
 ## System Overview
 
@@ -42,6 +44,11 @@ opm push
   |     +-- Stores: checksum, signature, ENS name, report URI
   |     +-- BaseScan tx link + contract link shown in terminal
   +-- Set report URI on-chain via OPMRegistry.setReportURI()
+  +-- Write ENS text records (opm.version, opm.checksum, opm.fileverse, opm.risk_score, opm.packages)
+  |     +-- Multicall batching when resolver supports it
+  |     +-- Per-package records: opm.pkg.<name>.version, opm.pkg.<name>.fileverse
+  |     +-- Subname creation: <package>.<author>.eth (if parent name is owned)
+  |     +-- Etherscan tx link shown for ENS record writes
 
 opm register-agent --name <name> --model <model>
   |
@@ -117,7 +124,7 @@ The server binds to `http://localhost:8001` by default. This is configurable via
 
 | Command | Description |
 |---------|-------------|
-| `opm push` | Sign, scan, publish to npm, and register on-chain |
+| `opm push` | Sign, scan, publish to npm, register on-chain, write ENS records |
 | `opm push --token <token>` | Publish using an npm automation token (bypasses 2FA) |
 | `opm push --otp <code>` | Publish with a one-time 2FA code |
 | `opm install <pkg>[@ver]` | Install with signature verification, CVE checks, and on-chain risk gating |
@@ -125,8 +132,8 @@ The server binds to `http://localhost:8001` by default. This is configurable via
 | `opm check` | Scan all dependencies for typosquats, CVEs, and AI-detected risks |
 | `opm fix` | Auto-correct typosquatted names and upgrade vulnerable versions |
 | `opm audit` | Audit all dependencies against on-chain and CVE data |
-| `opm info <pkg>` | Display on-chain security metadata for a specific package |
-| `opm view <name.eth>` | Display ENS author profile, published packages, and reputation |
+| `opm info <pkg>` | Display on-chain security metadata + ENS records for a package |
+| `opm view <name.eth>` | Display ENS author profile, OPM records, and published packages |
 | `opm whois <name>` | ENS identity lookup (appends `.eth` if omitted) |
 
 ### Agent Commands
@@ -288,7 +295,7 @@ packages/
   cli/              Ink-based terminal UI
     commands/       push, install, check, fix, audit, info, author-view, register-agent, passthrough
     components/     Header, StatusLine, RiskBadge, Hyperlink, PackageCard, AuthorInfo, AgentScores
-    services/       contract, ens, osv, signature, chainpatrol, fileverse, avatar, typosquat, version
+    services/       contract, ens, ens-records, osv, signature, chainpatrol, fileverse, avatar, typosquat, version
   web/              Next.js landing page (dark mode, Tailwind CSS)
 docs/               Mintlify documentation (mint.json + MDX pages)
 ```

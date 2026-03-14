@@ -8,6 +8,7 @@ export { callLLM, callLLMRaw, getLLMProvider } from './services/openrouter';
 export { fetchPackageData, extractMetadata, buildVersionHistory, fetchSourceFiles, extractLocalSourceFiles, buildLocalPackageData } from './services/npm-registry';
 export { submitScoreOnChain, setReportURIOnChain } from './services/contract-writer';
 export { uploadReportToFileverse, uploadCheckReportToFileverse, fetchReportFromFileverse } from './services/fileverse';
+export type { FileverseUploadResult } from './services/fileverse';
 export { formatCheckReportAsMarkdown } from './services/report-formatter';
 export { runBenchmarkSuite, type AgentCandidate, type BenchmarkRunResult } from './services/benchmark-runner';
 export { generateProof, verifyProof, generateCommitment, proofToOnChainBytes, type ZKProof } from './services/zk-verifier';

@@ -8,6 +8,7 @@ import { uploadReportToFileverse } from '../services/fileverse';
 export interface ScanJobResult {
   report: ScanReport;
   reportURI: string;
+  ipfsHash?: string;
 }
 
 const activeJobs = new Map<string, Promise<ScanJobResult>>();
@@ -77,9 +78,13 @@ async function executeScan(
 
   log('Uploading report to Fileverse...');
   let reportURI: string;
+  let ipfsHash: string | undefined;
   try {
-    reportURI = await uploadReportToFileverse(report);
+    const uploadResult = await uploadReportToFileverse(report);
+    reportURI = uploadResult.link;
+    ipfsHash = uploadResult.ipfsHash;
     log(`Report uploaded: ${reportURI}`);
+    if (ipfsHash) log(`IPFS content hash: ${ipfsHash}`);
   } catch (err) {
     log(`Fileverse upload failed: ${err}`);
     reportURI = `local://report-${packageName}-${version}`;
@@ -92,5 +97,5 @@ async function executeScan(
     log(`On-chain report URI: ${err?.shortMessage || err?.message || 'failed'}`);
   }
 
-  return { report, reportURI };
+  return { report, reportURI, ipfsHash };
 }

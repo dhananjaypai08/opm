@@ -65,6 +65,7 @@
         "concepts/security-model",
         "concepts/multi-agent-consensus",
         "concepts/on-chain-registry",
+        "concepts/ens-records",
         "concepts/zk-agent-verification"
       ]
     },

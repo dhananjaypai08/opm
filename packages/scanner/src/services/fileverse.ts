@@ -11,7 +11,49 @@ function getApiConfig() {
   return { apiUrl, apiKey };
 }
 
-export async function uploadReportToFileverse(report: ScanReport): Promise<string> {
+export interface FileverseUploadResult {
+  link: string;
+  ipfsHash?: string;
+}
+
+interface DdocResponse {
+  ddocId: string;
+  syncStatus: string;
+  link?: string;
+  contentHash?: string;
+  ipfsHash?: string;
+  cid?: string;
+  ipfsCid?: string;
+  [key: string]: unknown;
+}
+
+function extractIPFSHash(data: DdocResponse, log?: (msg: string) => void): string | undefined {
+  const knownFields = ['contentHash', 'ipfsHash', 'cid', 'ipfsCid', 'hash', 'ipfs', 'contentId'];
+  for (const field of knownFields) {
+    const val = data[field];
+    if (typeof val === 'string' && val.length > 0) return val;
+  }
+
+  for (const [key, val] of Object.entries(data)) {
+    if (typeof val === 'string' && (val.startsWith('Qm') || val.startsWith('bafy'))) {
+      return val;
+    }
+  }
+
+  if (data.link) {
+    const ipfsMatch = data.link.match(/\/ipfs\/(Qm[A-Za-z0-9]{44,}|bafy[a-z2-7]{50,})/);
+    if (ipfsMatch) return ipfsMatch[1];
+  }
+
+  if (log) {
+    const keys = Object.keys(data).filter((k) => !['ddocId', 'syncStatus', 'link'].includes(k));
+    if (keys.length > 0) log(`Fileverse extra fields: ${keys.join(', ')}`);
+  }
+
+  return undefined;
+}
+
+export async function uploadReportToFileverse(report: ScanReport): Promise<FileverseUploadResult> {
   const { apiUrl, apiKey } = getApiConfig();
 
   const title = `OPM Security Report: ${report.package}@${report.version}`;
@@ -28,16 +70,19 @@ export async function uploadReportToFileverse(report: ScanReport): Promise<strin
     throw new Error(`Fileverse create failed (${res.status}): ${body}`);
   }
 
-  const { data } = await res.json() as { data: { ddocId: string; syncStatus: string; link?: string } };
+  const { data } = await res.json() as { data: DdocResponse };
   const ddocId = data.ddocId;
+  let ipfsHash = extractIPFSHash(data);
 
-  if (data.syncStatus === 'synced' && data.link) return data.link;
+  if (data.syncStatus === 'synced' && data.link) {
+    return { link: data.link, ipfsHash };
+  }
 
-  const link = await pollForSync(apiUrl, apiKey, ddocId);
-  return link;
+  const syncResult = await pollForSync(apiUrl, apiKey, ddocId);
+  return { link: syncResult.link, ipfsHash: ipfsHash || syncResult.ipfsHash };
 }
 
-async function pollForSync(apiUrl: string, apiKey: string, ddocId: string): Promise<string> {
+async function pollForSync(apiUrl: string, apiKey: string, ddocId: string): Promise<FileverseUploadResult> {
   const start = Date.now();
 
   while (Date.now() - start < POLL_TIMEOUT_MS) {
@@ -46,15 +91,17 @@ async function pollForSync(apiUrl: string, apiKey: string, ddocId: string): Prom
     const res = await fetch(`${apiUrl}/api/ddocs/${ddocId}?apiKey=${encodeURIComponent(apiKey)}`);
     if (!res.ok) continue;
 
-    const doc = await res.json() as { syncStatus: string; link?: string };
-    if (doc.syncStatus === 'synced' && doc.link) return doc.link;
+    const doc = await res.json() as DdocResponse;
+    if (doc.syncStatus === 'synced' && doc.link) {
+      return { link: doc.link, ipfsHash: extractIPFSHash(doc) };
+    }
     if (doc.syncStatus === 'failed') throw new Error('Fileverse blockchain sync failed');
   }
 
-  return `https://ddocs.new/pending/${ddocId}`;
+  return { link: `https://ddocs.new/pending/${ddocId}` };
 }
 
-export async function uploadCheckReportToFileverse(report: CheckReport): Promise<string> {
+export async function uploadCheckReportToFileverse(report: CheckReport): Promise<FileverseUploadResult> {
   const { apiUrl, apiKey } = getApiConfig();
   const title = `OPM Check Report: ${report.project} (${report.totalDeps} deps)`;
   const content = formatCheckReportAsMarkdown(report);
@@ -70,8 +117,10 @@ export async function uploadCheckReportToFileverse(report: CheckReport): Promise
     throw new Error(`Fileverse create failed (${res.status}): ${body}`);
   }
 
-  const { data } = await res.json() as { data: { ddocId: string; syncStatus: string; link?: string } };
-  if (data.syncStatus === 'synced' && data.link) return data.link;
+  const { data } = await res.json() as { data: DdocResponse };
+  if (data.syncStatus === 'synced' && data.link) {
+    return { link: data.link, ipfsHash: extractIPFSHash(data) };
+  }
   return pollForSync(apiUrl, apiKey, data.ddocId);
 }
 

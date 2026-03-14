@@ -9,6 +9,7 @@ import { Hyperlink } from '../components/Hyperlink';
 import { computeChecksum, signChecksumAsync } from '../services/signature';
 import { resolveENSName } from '../services/ens';
 import { registerPackageOnChain } from '../services/contract';
+import { writeENSRecords, buildOPMRecords, readOPMRecords, createPackageSubname, setENSContenthash, parseFileverseLink, readFileverseContentHash } from '../services/ens-records';
 import { enqueueScan } from '@opm/scanner';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -23,6 +24,7 @@ interface Steps {
   scan: StepStatus;
   publish: StepStatus;
   register: StepStatus;
+  ensRecords: StepStatus;
 }
 
 interface PushResult {
@@ -39,6 +41,11 @@ interface PushResult {
   agents?: AgentEntry[];
   blocked?: boolean;
   blockReason?: string;
+  ensRecordsTx?: string;
+  ensRecordsChain?: string;
+  ensRecordsCount?: number;
+  ensSubname?: string;
+  ipfsContenthash?: string;
 }
 
 interface PushCommandProps {
@@ -50,10 +57,12 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
   const [steps, setSteps] = useState<Steps>({
     pack: 'pending', sign: 'pending', ens: 'pending',
     scan: 'pending', publish: 'pending', register: 'pending',
+    ensRecords: 'pending',
   });
   const [result, setResult] = useState<PushResult>({});
   const [error, setError] = useState<string | null>(null);
   const [scanLogs, setScanLogs] = useState<string[]>([]);
+  const [ensRecordLogs, setEnsRecordLogs] = useState<string[]>([]);
   const [pkgLabel, setPkgLabel] = useState('');
 
   const updateStep = (key: keyof Steps, status: StepStatus) =>
@@ -93,6 +102,9 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
 
     updateStep('scan', 'running');
     let scanPassed = false;
+    let finalReportURI: string | undefined;
+    let finalRiskScore: number | undefined;
+    let finalIpfsHash: string | undefined;
     try {
       const scanResult = await enqueueScan(name, version, (msg) =>
         setScanLogs((prev) => [...prev.slice(-8), msg]),
@@ -101,6 +113,9 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
 
       const riskScore = scanResult.report.aggregate_risk_score;
       const riskLevel = classifyRisk(riskScore);
+      finalReportURI = scanResult.reportURI;
+      finalRiskScore = riskScore;
+      finalIpfsHash = scanResult.ipfsHash;
 
       setResult((r) => ({
         ...r,
@@ -205,6 +220,74 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
       setScanLogs((prev) => [...prev, `Registration: ${err?.shortMessage || err?.message || 'failed'}`]);
     }
     updateStep('register', 'done');
+
+    // ── Write package metadata to ENS text records ──
+    if (ensName) {
+      updateStep('ensRecords', 'running');
+      const ensLog = (msg: string) => setEnsRecordLogs((prev) => [...prev, msg]);
+      try {
+        ensLog(`Reading existing records from ${ensName}...`);
+        const existingRecords = await readOPMRecords(ensName);
+        const records = buildOPMRecords({
+          packageName: name,
+          version,
+          checksum,
+          signature,
+          reportURI: finalReportURI,
+          riskScore: finalRiskScore,
+          existingPackages: existingRecords.packages,
+        });
+
+        const writeResult = await writeENSRecords(
+          ensName,
+          privateKey,
+          records,
+          ensLog,
+        );
+
+        if (writeResult) {
+          setResult((r) => ({
+            ...r,
+            ensRecordsTx: writeResult.txHash,
+            ensRecordsChain: writeResult.chain,
+            ensRecordsCount: writeResult.recordCount,
+          }));
+        } else {
+          ensLog(`Hint: signer needs ETH on Ethereum (Sepolia or Mainnet) for gas, and must be the manager of ${ensName}`);
+        }
+
+        let ipfsCid = finalIpfsHash;
+        if (!ipfsCid && finalReportURI) {
+          const fvLink = parseFileverseLink(finalReportURI);
+          if (fvLink) {
+            ensLog(`Reading IPFS hash from Fileverse contract ${fvLink.portalAddress.slice(0, 10)}... file #${fvLink.fileId}`);
+            ipfsCid = (await readFileverseContentHash(fvLink.portalAddress, fvLink.fileId, ensLog)) ?? undefined;
+          }
+        }
+        if (ipfsCid) {
+          const chResult = await setENSContenthash(ensName, privateKey, ipfsCid, ensLog);
+          if (chResult) {
+            setResult((r) => ({ ...r, ipfsContenthash: ipfsCid }));
+          }
+        }
+
+        const subResult = await createPackageSubname(
+          ensName,
+          name,
+          privateKey,
+          records,
+          ensLog,
+        );
+        if (subResult) {
+          setResult((r) => ({ ...r, ensSubname: subResult.subname }));
+        }
+      } catch (err: any) {
+        ensLog(`Error: ${err?.message || 'unknown'}`);
+      }
+      updateStep('ensRecords', 'done');
+    } else {
+      updateStep('ensRecords', 'skip');
+    }
 
     if (fs.existsSync(tarballFile)) fs.unlinkSync(tarballFile);
   }
@@ -323,6 +406,35 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
                 <Text color="gray">📋 </Text>
                 <Hyperlink url={contractUrl()} label="OPM Registry Contract" color="cyan" />
               </Box>
+            </Box>
+          )}
+          <StatusLine label="Write ENS records" status={steps.ensRecords}
+            detail={steps.ensRecords === 'skip' ? 'no ENS name' : steps.ensRecords === 'done' && result.ensRecordsCount ? `${result.ensRecordsCount} records` : undefined} />
+          {steps.ensRecords === 'done' && result.ensRecordsTx && (
+            <Box flexDirection="column" marginLeft={4}>
+              <Box>
+                <Text color="gray">Chain: </Text>
+                <Text color="cyan">{result.ensRecordsChain}</Text>
+                <Text color="gray"> | </Text>
+                <Hyperlink url={`https://${result.ensRecordsChain === 'sepolia' ? 'sepolia.' : ''}etherscan.io/tx/${result.ensRecordsTx}`} label={`tx ${result.ensRecordsTx.slice(0, 10)}...`} color="green" />
+              </Box>
+              <Box>
+                <Text color="gray">Records: </Text>
+                <Text color="white">url, opm.version, opm.checksum, opm.fileverse, opm.risk_score{result.ipfsContenthash ? ', contenthash' : ''}</Text>
+              </Box>
+              {result.ensSubname && (
+                <Box>
+                  <Text color="gray">Subname: </Text>
+                  <Text color="cyan" bold>{result.ensSubname}</Text>
+                </Box>
+              )}
+            </Box>
+          )}
+          {ensRecordLogs.length > 0 && (
+            <Box flexDirection="column" marginLeft={4}>
+              {ensRecordLogs.map((log, i) => (
+                <Text key={i} color={log.startsWith('Hint:') || log.startsWith('Error:') ? 'yellow' : 'gray'}>{log}</Text>
+              ))}
             </Box>
           )}
         </>

@@ -10,7 +10,7 @@ export const OPENROUTER_MODELS = {
 export const OPENAI_MODELS = {
   agent1: 'gpt-4.1',
   agent2: 'gpt-4.1-mini',
-  agent3: 'gpt-4.1-nano',
+  agent3: 'gpt-5.4',
 } as const;
 
 export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -48,3 +48,15 @@ export const SCANNABLE_EXTENSIONS = ['.js', '.ts', '.mjs', '.cjs', '.json'];
 export const MAX_FILE_SIZE_BYTES = 100_000;
 export const MAX_TOTAL_CODE_CHARS = 200_000;
 export const VERSION_LOOKBACK = 3;
+
+export const ENS_REGISTRY_ADDRESS = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e';
+
+export const OPM_ENS_KEYS = {
+  version: 'opm.version',
+  checksum: 'opm.checksum',
+  fileverse: 'opm.fileverse',
+  riskScore: 'opm.risk_score',
+  packages: 'opm.packages',
+  signature: 'opm.signature',
+  contract: 'opm.contract',
+} as const;

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { classifyRisk, truncateAddress } from '@opm/core';
-import type { AuthorProfile } from '@opm/core';
+import type { AuthorProfile, OPMENSRecords } from '@opm/core';
 import { Header } from '../components/Header';
 import { StatusLine } from '../components/StatusLine';
 import { RiskBadge } from '../components/RiskBadge';
 import { Hyperlink } from '../components/Hyperlink';
 import { resolveAddress, getENSTextRecords, type ENSProfile } from '../services/ens';
+import { readOPMRecords, readENSContenthash, decodeContenthash } from '../services/ens-records';
 import {
   getAuthorProfile,
   getPackagesByAuthor, getPackagesByAuthorDirect, type AuthorPackageSummary,
@@ -20,6 +21,7 @@ interface Steps {
   onchain: StepStatus;
   profile: StepStatus;
   packages: StepStatus;
+  opmRecords: StepStatus;
 }
 
 interface AuthorViewProps {
@@ -28,11 +30,13 @@ interface AuthorViewProps {
 
 export function AuthorViewCommand({ ensName }: AuthorViewProps) {
   const [steps, setSteps] = useState<Steps>({
-    resolve: 'pending', onchain: 'pending', profile: 'pending', packages: 'pending',
+    resolve: 'pending', onchain: 'pending', profile: 'pending', packages: 'pending', opmRecords: 'pending',
   });
   const [address, setAddress] = useState<string | null>(null);
   const [author, setAuthor] = useState<AuthorProfile | null>(null);
   const [ensProfile, setEnsProfile] = useState<ENSProfile | null>(null);
+  const [opmRecords, setOpmRecords] = useState<OPMENSRecords>({});
+  const [contenthash, setContenthash] = useState<string | null>(null);
   const [packages, setPackages] = useState<AuthorPackageSummary[]>([]);
   const [avatarArt, setAvatarArt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +109,21 @@ export function AuthorViewCommand({ ensName }: AuthorViewProps) {
       update('packages', 'skip');
     }
 
+    update('opmRecords', 'running');
+    try {
+      const [recs, ch] = await Promise.allSettled([
+        readOPMRecords(ensName),
+        readENSContenthash(ensName),
+      ]);
+      if (recs.status === 'fulfilled') setOpmRecords(recs.value);
+      if (ch.status === 'fulfilled' && ch.value) setContenthash(ch.value);
+      const hasData = (recs.status === 'fulfilled' && Object.keys(recs.value).length > 0)
+        || (ch.status === 'fulfilled' && ch.value);
+      update('opmRecords', hasData ? 'done' : 'skip');
+    } catch {
+      update('opmRecords', 'skip');
+    }
+
     const art = await avatarPromise;
     if (art) setAvatarArt(art);
 
@@ -126,6 +145,8 @@ export function AuthorViewCommand({ ensName }: AuthorViewProps) {
         detail={steps.onchain === 'done' ? 'registered author' : steps.onchain === 'error' ? 'not found' : undefined} />
       <StatusLine label="Fetch packages" status={steps.packages}
         detail={steps.packages === 'done' ? `${packages.length} package(s)` : undefined} />
+      <StatusLine label="OPM ENS records" status={steps.opmRecords}
+        detail={steps.opmRecords === 'done' ? `${Object.keys(opmRecords).length} records` : steps.opmRecords === 'skip' ? 'none' : undefined} />
 
       {done && (
         <Box flexDirection="column" marginTop={1}>
@@ -194,6 +215,70 @@ export function AuthorViewCommand({ ensName }: AuthorViewProps) {
                   <Text color="gray">Avg reputation:     </Text>
                   <RiskBadge level={classifyRisk(author.reputationScore)} score={author.reputationScore} />
                 </Box>
+              </Box>
+            </>
+          )}
+
+          {(Object.keys(opmRecords).length > 0 || contenthash) && (
+            <>
+              <Text> </Text>
+              <Text color="white" bold> OPM ENS Records</Text>
+              <Box flexDirection="column" marginLeft={2}>
+                {contenthash && (() => {
+                  const decoded = decodeContenthash(contenthash);
+                  return decoded ? (
+                    <Box>
+                      <Text color="gray">contenthash:    </Text>
+                      <Text color="magenta">{decoded.length > 60 ? decoded.slice(0, 60) + '...' : decoded}</Text>
+                    </Box>
+                  ) : null;
+                })()}
+                {opmRecords.version && (
+                  <Box>
+                    <Text color="gray">opm.version:    </Text>
+                    <Text color="cyan">{opmRecords.version}</Text>
+                  </Box>
+                )}
+                {opmRecords.checksum && (
+                  <Box>
+                    <Text color="gray">opm.checksum:   </Text>
+                    <Text color="cyan">{truncateAddress(opmRecords.checksum)}</Text>
+                  </Box>
+                )}
+                {opmRecords.fileverse && (
+                  <Box>
+                    <Text color="gray">opm.fileverse:  </Text>
+                    {opmRecords.fileverse.startsWith('http') ? (
+                      <Hyperlink url={opmRecords.fileverse} label={opmRecords.fileverse.length > 50 ? opmRecords.fileverse.slice(0, 50) + '...' : opmRecords.fileverse} color="green" />
+                    ) : (
+                      <Text color="green">{opmRecords.fileverse}</Text>
+                    )}
+                  </Box>
+                )}
+                {opmRecords.riskScore && (
+                  <Box>
+                    <Text color="gray">opm.risk_score: </Text>
+                    <Text color="cyan">{opmRecords.riskScore}/100</Text>
+                  </Box>
+                )}
+                {opmRecords.signature && (
+                  <Box>
+                    <Text color="gray">opm.signature:  </Text>
+                    <Text color="cyan">{truncateAddress(opmRecords.signature)}</Text>
+                  </Box>
+                )}
+                {opmRecords.contract && (
+                  <Box>
+                    <Text color="gray">opm.contract:   </Text>
+                    <Hyperlink url={`https://sepolia.basescan.org/address/${opmRecords.contract}`} label={truncateAddress(opmRecords.contract)} color="cyan" />
+                  </Box>
+                )}
+                {opmRecords.packages && (
+                  <Box>
+                    <Text color="gray">opm.packages:   </Text>
+                    <Text color="white">{opmRecords.packages}</Text>
+                  </Box>
+                )}
               </Box>
             </>
           )}

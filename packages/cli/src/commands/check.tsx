@@ -121,8 +121,8 @@ export function CheckCommand() {
 
     setPhase('upload');
     try {
-      const link = await uploadCheckReportToFileverse(checkReport);
-      setReportLink(link);
+      const uploadResult = await uploadCheckReportToFileverse(checkReport);
+      setReportLink(uploadResult.link);
     } catch { /* no Fileverse key — skip */ }
 
     setPhase('done');

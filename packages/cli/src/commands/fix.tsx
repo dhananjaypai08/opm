@@ -190,8 +190,8 @@ export function FixCommand() {
         deps: depResults,
         agents: agentResults,
       };
-      const link = await uploadCheckReportToFileverse(checkReport);
-      setReportLink(link);
+      const uploadResult = await uploadCheckReportToFileverse(checkReport);
+      setReportLink(uploadResult.link);
     } catch { /* no Fileverse key — skip */ }
 
     setPhase('done');
