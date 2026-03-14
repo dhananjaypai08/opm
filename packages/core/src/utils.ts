@@ -184,6 +184,24 @@ export function safeJsonParse<T>(raw: string): T | null {
   try {
     return JSON.parse(raw) as T;
   } catch {
+    // Strip markdown code fences (```json ... ``` or ``` ... ```)
+    const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+    if (fenceMatch) {
+      try {
+        return JSON.parse(fenceMatch[1].trim()) as T;
+      } catch {
+        // fall through
+      }
+    }
+    // Try extracting the first JSON object from the response
+    const objectMatch = raw.match(/\{[\s\S]*\}/);
+    if (objectMatch) {
+      try {
+        return JSON.parse(objectMatch[0]) as T;
+      } catch {
+        // fall through
+      }
+    }
     return null;
   }
 }

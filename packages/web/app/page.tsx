@@ -148,7 +148,6 @@ export default function OPMTerminal() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-white font-bold text-lg">OPM</span>
-                <span className="text-gray-400 text-sm">on-chain package manager</span>
               </div>
             </div>
 
@@ -670,9 +669,9 @@ export default function OPMTerminal() {
 
                 <div className="space-y-2 font-mono text-sm">
                   {[
-                    { id: "1", name: "claude-sonnet-4", provider: "anthropic", role: "Primary scanner", color: "text-green-400" },
-                    { id: "2", name: "gemini-2.5-flash", provider: "google", role: "Secondary analysis", color: "text-green-400" },
-                    { id: "3", name: "deepseek-chat", provider: "deepseek", role: "Tertiary verification", color: "text-green-400" },
+                    { id: "1", name: "claude-opus-4.6", provider: "anthropic", role: "Primary scanner", color: "text-green-400" },
+                    { id: "2", name: "gemini-3.1-pro", provider: "google", role: "Secondary analysis", color: "text-green-400" },
+                    { id: "3", name: "deepseek-v3.2", provider: "deepseek", role: "Tertiary verification", color: "text-green-400" },
                   ].map((agent) => (
                     <div
                       key={agent.id}
@@ -823,7 +822,6 @@ export default function OPMTerminal() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2.5">
               <span className="font-bold">OPM</span>
-              <span className="text-xs text-gray-500">On-chain Package Manager</span>
             </div>
             <div className="flex items-center gap-6 text-sm text-gray-500">
               <a href={DOCS_URL} target="_blank" rel="noopener" className="hover:text-white transition-colors">Docs</a>

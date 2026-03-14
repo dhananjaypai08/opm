@@ -10,7 +10,7 @@ import { computeChecksum, signChecksumAsync } from '../services/signature';
 import { resolveENSName } from '../services/ens';
 import { registerPackageOnChain } from '../services/contract';
 import { writeENSRecords, buildOPMRecords, readOPMRecords, createPackageSubname, setENSContenthash, parseFileverseLink, readFileverseContentHash } from '../services/ens-records';
-import { enqueueScan } from '@opm/scanner';
+import { enqueueScan, submitScoreOnChain, setReportURIOnChain } from '@opm/scanner';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
@@ -105,10 +105,11 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
     let finalReportURI: string | undefined;
     let finalRiskScore: number | undefined;
     let finalIpfsHash: string | undefined;
+    let scanAgents: AgentEntry[] = [];
     try {
       const scanResult = await enqueueScan(name, version, (msg) =>
         setScanLogs((prev) => [...prev.slice(-8), msg]),
-        { tarballPath: tarballFile, pkgJsonPath },
+        { local: { tarballPath: tarballFile, pkgJsonPath }, skipOnChainScore: true },
       );
 
       const riskScore = scanResult.report.aggregate_risk_score;
@@ -116,6 +117,7 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
       finalReportURI = scanResult.reportURI;
       finalRiskScore = riskScore;
       finalIpfsHash = scanResult.ipfsHash;
+      scanAgents = scanResult.report.agents || [];
 
       setResult((r) => ({
         ...r,
@@ -216,6 +218,27 @@ export function PushCommand({ npmToken, otp }: PushCommandProps) {
       const sigBytes = new Uint8Array(Buffer.from(signature.slice(2), 'hex'));
       const txHash = await registerPackageOnChain(name, version, checksum, sigBytes, ensName);
       setResult((r) => ({ ...r, txHash }));
+
+      // Submit individual agent scores now that the version exists on-chain
+      for (const agent of scanAgents) {
+        try {
+          setScanLogs((prev) => [...prev.slice(-8), `[${agent.agent_id}] Submitting score (${agent.result.risk_score}) to contract...`]);
+          await submitScoreOnChain(name, version, agent.result.risk_score, agent.result.reasoning);
+          setScanLogs((prev) => [...prev.slice(-8), `[${agent.agent_id}] Score submitted on-chain ✓`]);
+        } catch (err: any) {
+          setScanLogs((prev) => [...prev.slice(-8), `[${agent.agent_id}] Score submission: ${err?.shortMessage || err?.message || 'failed'}`]);
+        }
+      }
+
+      // Set report URI on-chain
+      if (finalReportURI) {
+        try {
+          await setReportURIOnChain(name, version, finalReportURI);
+          setScanLogs((prev) => [...prev.slice(-8), 'Report URI stored on-chain ✓']);
+        } catch (err: any) {
+          setScanLogs((prev) => [...prev.slice(-8), `Report URI: ${err?.shortMessage || err?.message || 'failed'}`]);
+        }
+      }
     } catch (err: any) {
       setScanLogs((prev) => [...prev, `Registration: ${err?.shortMessage || err?.message || 'failed'}`]);
     }

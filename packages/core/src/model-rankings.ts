@@ -84,23 +84,35 @@ export function getDefaultRankings(): ModelRanking[] {
 }
 
 const MODEL_SLUGS: Record<string, string> = {
-  'anthropic/claude-sonnet-4-20250514': 'claude-sonnet-4',
-  'anthropic/claude-sonnet-4': 'claude-sonnet-4',
+  'anthropic/claude-opus-4.6': 'claude-opus-4-6',
+  'anthropic/claude-sonnet-4.6': 'claude-sonnet-4-6',
+  'anthropic/claude-opus-4': 'claude-opus-4-6',
+  'google/gemini-3.1-pro-preview': 'gemini-3.1-pro-preview',
+  'google/gemini-3-flash': 'gemini-3-flash',
   'google/gemini-2.5-flash': 'gemini-2.5-flash',
-  'deepseek/deepseek-chat': 'deepseek-chat',
-  'openai/gpt-4.1': 'gpt-4.1',
-  'gpt-4.1': 'gpt-4.1',
-  'openai/gpt-4.1-mini': 'gpt-4.1-mini',
-  'gpt-4.1-mini': 'gpt-4.1-mini',
-  'openai/gpt-4.1-nano': 'gpt-4.1-nano',
-  'gpt-4.1-nano': 'gpt-4.1-nano',
+  'deepseek/deepseek-v3.2': 'deepseek-v3-2',
+  'deepseek/deepseek-chat': 'deepseek-v3-2',
+  'openai/gpt-5.4': 'gpt-5.4',
+  'gpt-5.4': 'gpt-5.4',
+  'openai/gpt-5.3-codex': 'gpt-5.3-codex',
+  'gpt-5.3-codex': 'gpt-5.3-codex',
+  'openai/gpt-5.2': 'gpt-5.2',
+  'gpt-5.2': 'gpt-5.2',
 };
 
 function findModel(rankings: ModelRanking[], modelSlug: string): ModelRanking | undefined {
   const normalizedSlug = MODEL_SLUGS[modelSlug] || modelSlug.toLowerCase();
-  return rankings.find(m => m.slug.toLowerCase() === normalizedSlug)
+  const found = rankings.find(m => m.slug.toLowerCase() === normalizedSlug)
     || rankings.find(m => m.name.toLowerCase() === normalizedSlug)
     || rankings.find(m => m.name.toLowerCase().includes(normalizedSlug));
+  // Fallback to default rankings if API rankings didn't contain the model
+  if (!found && rankings !== getDefaultRankings()) {
+    const defaults = getDefaultRankings();
+    return defaults.find(m => m.slug.toLowerCase() === normalizedSlug)
+      || defaults.find(m => m.name.toLowerCase() === normalizedSlug)
+      || defaults.find(m => m.name.toLowerCase().includes(normalizedSlug));
+  }
+  return found;
 }
 
 export async function getModelWeight(modelSlug: string): Promise<number> {

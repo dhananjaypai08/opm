@@ -13,17 +13,22 @@ export interface ScanJobResult {
 
 const activeJobs = new Map<string, Promise<ScanJobResult>>();
 
+export interface EnqueueScanOptions {
+  local?: LocalScanContext;
+  skipOnChainScore?: boolean;
+}
+
 export async function enqueueScan(
   packageName: string,
   version: string,
   onStatus?: (msg: string) => void,
-  local?: LocalScanContext,
+  localOrOptions?: LocalScanContext | EnqueueScanOptions,
 ): Promise<ScanJobResult> {
   const key = `${packageName}@${version}`;
   const existing = activeJobs.get(key);
   if (existing) return existing;
 
-  const promise = executeScan(packageName, version, onStatus, local);
+  const promise = executeScan(packageName, version, onStatus, localOrOptions);
   activeJobs.set(key, promise);
 
   try {
@@ -37,14 +42,21 @@ async function executeScan(
   packageName: string,
   version: string,
   onStatus?: (msg: string) => void,
-  local?: LocalScanContext,
+  localOrOptions?: LocalScanContext | EnqueueScanOptions,
 ): Promise<ScanJobResult> {
   const log = onStatus || console.log;
   const configs = getAgentConfigs();
 
+  const opts: EnqueueScanOptions = localOrOptions && 'skipOnChainScore' in localOrOptions
+    ? localOrOptions
+    : { local: localOrOptions as LocalScanContext | undefined };
+
   log('Starting parallel agent scans...');
   const results = await Promise.allSettled(
-    configs.map((cfg) => runAgent(cfg, packageName, version, onStatus, local)),
+    configs.map((cfg) => runAgent(cfg, packageName, version, onStatus, {
+      local: opts.local,
+      skipOnChainScore: opts.skipOnChainScore,
+    })),
   );
 
   const agents: AgentEntry[] = [];
@@ -90,11 +102,13 @@ async function executeScan(
     reportURI = `local://report-${packageName}-${version}`;
   }
 
-  try {
-    await setReportURIOnChain(packageName, version, reportURI);
-    log('Report URI stored on-chain');
-  } catch (err: any) {
-    log(`On-chain report URI: ${err?.shortMessage || err?.message || 'failed'}`);
+  if (!opts.skipOnChainScore) {
+    try {
+      await setReportURIOnChain(packageName, version, reportURI);
+      log('Report URI stored on-chain');
+    } catch (err: any) {
+      log(`On-chain report URI: ${err?.shortMessage || err?.message || 'failed'}`);
+    }
   }
 
   return { report, reportURI, ipfsHash };

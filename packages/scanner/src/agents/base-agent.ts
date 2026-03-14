@@ -19,13 +19,21 @@ export interface LocalScanContext {
   pkgJsonPath: string;
 }
 
+export interface RunAgentOptions {
+  local?: LocalScanContext;
+  skipOnChainScore?: boolean;
+}
+
 export async function runAgent(
   config: AgentConfig,
   packageName: string,
   version: string,
   onStatus?: (msg: string) => void,
-  local?: LocalScanContext,
+  localOrOptions?: LocalScanContext | RunAgentOptions,
 ): Promise<AgentEntry> {
+  const opts: RunAgentOptions = localOrOptions && 'skipOnChainScore' in localOrOptions
+    ? localOrOptions
+    : { local: localOrOptions as LocalScanContext | undefined };
   const log = onStatus || console.log;
 
   log(`[${config.agentId}] Fetching package data...`);
@@ -39,10 +47,10 @@ export async function runAgent(
     log(`[${config.agentId}] Downloading source from npm...`);
     sourceFiles = await fetchSourceFiles(packageName, version, tarballUrl);
   } catch {
-    if (!local) throw new Error(`${packageName}@${version} not found on npm and no local tarball provided`);
+    if (!opts.local) throw new Error(`${packageName}@${version} not found on npm and no local tarball provided`);
     log(`[${config.agentId}] Using local tarball...`);
-    data = buildLocalPackageData(local.pkgJsonPath);
-    sourceFiles = await extractLocalSourceFiles(local.tarballPath);
+    data = buildLocalPackageData(opts.local.pkgJsonPath);
+    sourceFiles = await extractLocalSourceFiles(opts.local.tarballPath);
   }
 
   const meta = extractMetadata(data, version);
@@ -64,13 +72,17 @@ export async function runAgent(
 
   log(`[${config.agentId}] ${config.model} — intelligence: ${intelligence}, coding: ${coding}, weight: ${weight}`);
 
-  log(`[${config.agentId}] Submitting score (${result.risk_score}) to contract...`);
   let scoreTxHash: string | undefined;
-  try {
-    scoreTxHash = await submitScoreOnChain(packageName, version, result.risk_score, result.reasoning);
-    log(`[${config.agentId}] Score submitted on-chain ✓`);
-  } catch (err: any) {
-    log(`[${config.agentId}] On-chain: ${err?.shortMessage || err?.message || 'failed'}`);
+  if (opts.skipOnChainScore) {
+    log(`[${config.agentId}] Score: ${result.risk_score} (on-chain deferred until registration)`);
+  } else {
+    log(`[${config.agentId}] Submitting score (${result.risk_score}) to contract...`);
+    try {
+      scoreTxHash = await submitScoreOnChain(packageName, version, result.risk_score, result.reasoning);
+      log(`[${config.agentId}] Score submitted on-chain ✓`);
+    } catch (err: any) {
+      log(`[${config.agentId}] On-chain: ${err?.shortMessage || err?.message || 'failed'}`);
+    }
   }
 
   return {

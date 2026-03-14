@@ -2,15 +2,15 @@ export const HIGH_RISK_THRESHOLD = 70;
 export const MEDIUM_RISK_THRESHOLD = 40;
 
 export const OPENROUTER_MODELS = {
-  agent1: 'anthropic/claude-sonnet-4-20250514',
-  agent2: 'google/gemini-2.5-flash',
-  agent3: 'deepseek/deepseek-chat',
+  agent1: 'anthropic/claude-opus-4.6',
+  agent2: 'google/gemini-3.1-pro-preview',
+  agent3: 'deepseek/deepseek-v3.2',
 } as const;
 
 export const OPENAI_MODELS = {
-  agent1: 'gpt-4.1',
-  agent2: 'gpt-4.1-mini',
-  agent3: 'gpt-5.4',
+  agent1: 'gpt-5.4',
+  agent2: 'gpt-5.3-codex',
+  agent3: 'gpt-5.2',
 } as const;
 
 export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
